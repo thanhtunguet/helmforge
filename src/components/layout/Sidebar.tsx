@@ -1,23 +1,44 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 import {
   LayoutDashboard,
   Box,
   Plus,
-  Settings,
   FileCode2,
   Layers,
+  LogOut,
+  User,
+  BookOpen,
 } from 'lucide-react';
 import { useHelmStore } from '@/lib/store';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
 
 export function Sidebar() {
   const location = useLocation();
   const templates = useHelmStore((state) => state.templates);
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success('Signed out successfully');
+  };
 
   const navItems = [
-    { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/templates/new', icon: Plus, label: 'New Template' },
   ];
+
+  const userInitials = user?.email?.charAt(0).toUpperCase() || 'U';
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
@@ -34,7 +55,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-4">
+        <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
           <div className="mb-4">
             <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Navigation
@@ -57,6 +78,14 @@ export function Sidebar() {
                 </Link>
               );
             })}
+            <Link
+              to="/docs"
+              target="_blank"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
+            >
+              <BookOpen className="h-4 w-4" />
+              Documentation
+            </Link>
           </div>
 
           {templates.length > 0 && (
@@ -88,8 +117,41 @@ export function Sidebar() {
           )}
         </nav>
 
-        {/* Footer */}
-        <div className="border-t border-sidebar-border p-4">
+        {/* User & Footer */}
+        <div className="border-t border-sidebar-border p-4 space-y-4">
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="w-full justify-start gap-3 px-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={user?.user_metadata?.avatar_url} />
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                    {userInitials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 text-left overflow-hidden">
+                  <p className="text-sm font-medium truncate">
+                    {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user?.email}
+                  </p>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem disabled>
+                <User className="mr-2 h-4 w-4" />
+                Profile (coming soon)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <FileCode2 className="h-4 w-4" />
             <span>Helm v3 Compatible</span>

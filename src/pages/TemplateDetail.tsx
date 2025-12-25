@@ -89,7 +89,7 @@ export default function TemplateDetail() {
   const handleDelete = () => {
     deleteTemplate(template.id);
     toast.success('Template deleted');
-    navigate('/');
+    navigate('/dashboard');
   };
 
   return (
@@ -100,7 +100,7 @@ export default function TemplateDetail() {
           <Button
             variant="ghost"
             className="mb-4 -ml-4"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/dashboard')}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Dashboard
