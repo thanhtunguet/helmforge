@@ -57,7 +57,11 @@ export function IngressesTab({ template }: IngressesTabProps) {
     rules: [] as IngressRule[],
   });
 
-  const [ruleForm, setRuleForm] = useState({ path: '', serviceName: '' });
+  const [ruleForm, setRuleForm] = useState({ 
+    serviceName: '', 
+    selectedRoute: '', 
+    customPath: '' 
+  });
 
   const openNew = () => {
     setEditingIngress(null);
@@ -85,22 +89,32 @@ export function IngressesTab({ template }: IngressesTabProps) {
     setDialogOpen(true);
   };
 
+  const selectedService = template.services.find(s => s.name === ruleForm.serviceName);
+  const isCustomRoute = ruleForm.selectedRoute === '__custom__';
+
   const addRule = () => {
-    if (!ruleForm.path || !ruleForm.serviceName) {
-      toast.error('Both path and service are required');
+    if (!ruleForm.serviceName) {
+      toast.error('Service is required');
       return;
     }
+    
+    const path = isCustomRoute ? ruleForm.customPath : ruleForm.selectedRoute;
+    if (!path) {
+      toast.error('Route path is required');
+      return;
+    }
+
     setFormData({
       ...formData,
       rules: [
         ...formData.rules,
         {
-          path: ruleForm.path.startsWith('/') ? ruleForm.path : `/${ruleForm.path}`,
+          path: path.startsWith('/') ? path : `/${path}`,
           serviceName: ruleForm.serviceName,
         },
       ],
     });
-    setRuleForm({ path: '', serviceName: '' });
+    setRuleForm({ serviceName: '', selectedRoute: '', customPath: '' });
   };
 
   const removeRule = (index: number) => {
@@ -334,35 +348,56 @@ export function IngressesTab({ template }: IngressesTabProps) {
 
             <div className="space-y-3">
               <Label>Routing Rules</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="/api"
-                  value={ruleForm.path}
-                  onChange={(e) =>
-                    setRuleForm({ ...ruleForm, path: e.target.value })
-                  }
-                  className="font-mono flex-1"
-                />
-                <Select
-                  value={ruleForm.serviceName}
-                  onValueChange={(value) =>
-                    setRuleForm({ ...ruleForm, serviceName: value })
-                  }
-                >
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Service" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {template.services.map((svc) => (
-                      <SelectItem key={svc.id} value={svc.name}>
-                        {svc.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button type="button" variant="secondary" onClick={addRule}>
-                  <Plus className="h-4 w-4" />
-                </Button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Select
+                    value={ruleForm.serviceName}
+                    onValueChange={(value) =>
+                      setRuleForm({ ...ruleForm, serviceName: value, selectedRoute: '', customPath: '' })
+                    }
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Select Service" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {template.services.map((svc) => (
+                        <SelectItem key={svc.id} value={svc.name}>
+                          {svc.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={ruleForm.selectedRoute}
+                    onValueChange={(value) =>
+                      setRuleForm({ ...ruleForm, selectedRoute: value, customPath: '' })
+                    }
+                    disabled={!ruleForm.serviceName}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select Route" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedService?.routes.map((route, idx) => (
+                        <SelectItem key={idx} value={route.path}>
+                          {route.path}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__custom__">Custom Route...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="secondary" onClick={addRule} disabled={!ruleForm.serviceName}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {isCustomRoute && (
+                  <Input
+                    placeholder="/custom-path"
+                    value={ruleForm.customPath}
+                    onChange={(e) => setRuleForm({ ...ruleForm, customPath: e.target.value })}
+                    className="font-mono"
+                  />
+                )}
               </div>
               {formData.rules.length > 0 && (
                 <div className="space-y-2">
