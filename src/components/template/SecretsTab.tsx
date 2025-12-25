@@ -4,6 +4,7 @@ import { TemplateWithRelations, TLSSecret } from '@/types/helm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -24,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Trash2, Key, Lock, Server } from 'lucide-react';
+import { Plus, Trash2, Key, Lock, Server, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface SecretsTabProps {
@@ -34,11 +35,33 @@ interface SecretsTabProps {
 export function SecretsTab({ template }: SecretsTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingSecret, setEditingSecret] = useState<TLSSecret | null>(null);
   
   const addTLSSecret = useHelmStore((state) => state.addTLSSecret);
+  const updateTLSSecret = useHelmStore((state) => state.updateTLSSecret);
   const deleteTLSSecret = useHelmStore((state) => state.deleteTLSSecret);
 
-  const [formData, setFormData] = useState({ name: '' });
+  const [formData, setFormData] = useState({ 
+    name: '',
+    cert: '',
+    key: ''
+  });
+
+  const openNew = () => {
+    setEditingSecret(null);
+    setFormData({ name: '', cert: '', key: '' });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (secret: TLSSecret) => {
+    setEditingSecret(secret);
+    setFormData({
+      name: secret.name,
+      cert: secret.cert || '',
+      key: secret.key || ''
+    });
+    setDialogOpen(true);
+  };
 
   const handleSubmit = () => {
     if (!formData.name.trim()) {
@@ -46,16 +69,29 @@ export function SecretsTab({ template }: SecretsTabProps) {
       return;
     }
 
-    const secret: TLSSecret = {
-      id: crypto.randomUUID(),
-      templateId: template.id,
-      name: formData.name,
-      type: 'tls',
-    };
-    addTLSSecret(secret);
-    toast.success('TLS secret added');
+    if (editingSecret) {
+      updateTLSSecret(editingSecret.id, {
+        name: formData.name,
+        cert: formData.cert || undefined,
+        key: formData.key || undefined,
+      });
+      toast.success('TLS secret updated');
+    } else {
+      const secret: TLSSecret = {
+        id: crypto.randomUUID(),
+        templateId: template.id,
+        name: formData.name,
+        type: 'tls',
+        cert: formData.cert || undefined,
+        key: formData.key || undefined,
+      };
+      addTLSSecret(secret);
+      toast.success('TLS secret added');
+    }
+    
     setDialogOpen(false);
-    setFormData({ name: '' });
+    setFormData({ name: '', cert: '', key: '' });
+    setEditingSecret(null);
   };
 
   const handleDelete = () => {
@@ -117,7 +153,7 @@ export function SecretsTab({ template }: SecretsTabProps) {
               Certificates for Ingress TLS termination
             </p>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
+          <Button onClick={openNew}>
             <Plus className="mr-2 h-4 w-4" />
             Add TLS Secret
           </Button>
@@ -127,7 +163,7 @@ export function SecretsTab({ template }: SecretsTabProps) {
           <Card className="border-dashed border-2 bg-transparent">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <p className="text-muted-foreground mb-4">No TLS secrets defined yet</p>
-              <Button variant="outline" onClick={() => setDialogOpen(true)}>
+              <Button variant="outline" onClick={openNew}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add your first TLS secret
               </Button>
@@ -145,29 +181,47 @@ export function SecretsTab({ template }: SecretsTabProps) {
                       </div>
                       <CardTitle className="text-base font-mono">{secret.name}</CardTitle>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive"
-                      onClick={() => setDeleteId(secret.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => openEdit(secret)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => setDeleteId(secret.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-1">
-                    <Badge variant="outline" className="font-mono text-xs">
+                    <Badge 
+                      variant={secret.cert ? "default" : "outline"} 
+                      className="font-mono text-xs"
+                    >
                       <Key className="mr-1 h-3 w-3" />
-                      tls.crt
+                      tls.crt {secret.cert ? '✓' : ''}
                     </Badge>
-                    <Badge variant="outline" className="font-mono text-xs">
+                    <Badge 
+                      variant={secret.key ? "default" : "outline"} 
+                      className="font-mono text-xs"
+                    >
                       <Key className="mr-1 h-3 w-3" />
-                      tls.key
+                      tls.key {secret.key ? '✓' : ''}
                     </Badge>
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Values assigned per chart version
+                    {secret.cert && secret.key 
+                      ? 'Certificate and key configured' 
+                      : 'Values can be assigned per chart version'}
                   </p>
                 </CardContent>
               </Card>
@@ -176,13 +230,15 @@ export function SecretsTab({ template }: SecretsTabProps) {
         )}
       </div>
 
-      {/* Add Dialog */}
+      {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Add TLS Secret</DialogTitle>
+            <DialogTitle>{editingSecret ? 'Edit TLS Secret' : 'Add TLS Secret'}</DialogTitle>
             <DialogDescription>
-              Create a TLS secret for Ingress HTTPS termination
+              {editingSecret 
+                ? 'Update the TLS secret configuration' 
+                : 'Create a TLS secret for Ingress HTTPS termination'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -192,11 +248,34 @@ export function SecretsTab({ template }: SecretsTabProps) {
                 id="name"
                 placeholder="wildcard-tls"
                 value={formData.name}
-                onChange={(e) => setFormData({ name: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="font-mono"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cert">Certificate (tls.crt)</Label>
+              <Textarea
+                id="cert"
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                value={formData.cert}
+                onChange={(e) => setFormData({ ...formData, cert: e.target.value })}
+                className="font-mono text-xs min-h-[120px]"
+              />
               <p className="text-xs text-muted-foreground">
-                Certificate and key values will be assigned when creating chart versions
+                Paste the PEM-encoded certificate or leave empty to set per version
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="key">Private Key (tls.key)</Label>
+              <Textarea
+                id="key"
+                placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+                value={formData.key}
+                onChange={(e) => setFormData({ ...formData, key: e.target.value })}
+                className="font-mono text-xs min-h-[120px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Paste the PEM-encoded private key or leave empty to set per version
               </p>
             </div>
           </div>
@@ -204,7 +283,9 @@ export function SecretsTab({ template }: SecretsTabProps) {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>Add TLS Secret</Button>
+            <Button onClick={handleSubmit}>
+              {editingSecret ? 'Update' : 'Add'} TLS Secret
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

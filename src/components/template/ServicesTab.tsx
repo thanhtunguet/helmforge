@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useHelmStore } from '@/lib/store';
-import { TemplateWithRelations, Service } from '@/types/helm';
+import { TemplateWithRelations, Service, EnvVarSchema, Route, ConfigMapEnvSource } from '@/types/helm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -24,11 +25,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, Route, Variable, Heart, Activity } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Plus, Pencil, Trash2, Route as RouteIcon, Variable, Heart, Activity, X, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ServicesTabProps {
   template: TemplateWithRelations;
+}
+
+interface FormData {
+  name: string;
+  routes: Route[];
+  envVars: EnvVarSchema[];
+  healthCheckEnabled: boolean;
+  livenessPath: string;
+  readinessPath: string;
+  configMapEnvSources: ConfigMapEnvSource[];
 }
 
 export function ServicesTab({ template }: ServicesTabProps) {
@@ -40,22 +58,26 @@ export function ServicesTab({ template }: ServicesTabProps) {
   const updateService = useHelmStore((state) => state.updateService);
   const deleteService = useHelmStore((state) => state.deleteService);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: '',
-    routes: '',
-    envVars: '',
+    routes: [],
+    envVars: [],
+    healthCheckEnabled: true,
     livenessPath: '/health',
     readinessPath: '/ready',
+    configMapEnvSources: [],
   });
 
   const openNew = () => {
     setEditingService(null);
     setFormData({
       name: '',
-      routes: '',
-      envVars: '',
+      routes: [],
+      envVars: [],
+      healthCheckEnabled: true,
       livenessPath: '/health',
       readinessPath: '/ready',
+      configMapEnvSources: [],
     });
     setDialogOpen(true);
   };
@@ -64,12 +86,86 @@ export function ServicesTab({ template }: ServicesTabProps) {
     setEditingService(service);
     setFormData({
       name: service.name,
-      routes: service.routes.map((r) => r.path).join(', '),
-      envVars: service.envVars.map((e) => e.name).join(', '),
+      routes: [...service.routes],
+      envVars: [...service.envVars],
+      healthCheckEnabled: service.healthCheckEnabled ?? true,
       livenessPath: service.livenessPath,
       readinessPath: service.readinessPath,
+      configMapEnvSources: service.configMapEnvSources ? [...service.configMapEnvSources] : [],
     });
     setDialogOpen(true);
+  };
+
+  // Route management
+  const addRoute = () => {
+    setFormData(prev => ({
+      ...prev,
+      routes: [...prev.routes, { path: '' }]
+    }));
+  };
+
+  const updateRoute = (index: number, path: string) => {
+    setFormData(prev => ({
+      ...prev,
+      routes: prev.routes.map((r, i) => 
+        i === index ? { path: path.startsWith('/') ? path : `/${path}` } : r
+      )
+    }));
+  };
+
+  const removeRoute = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      routes: prev.routes.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Environment variable management
+  const addEnvVar = () => {
+    setFormData(prev => ({
+      ...prev,
+      envVars: [...prev.envVars, { name: '', required: false }]
+    }));
+  };
+
+  const updateEnvVar = (index: number, name: string) => {
+    setFormData(prev => ({
+      ...prev,
+      envVars: prev.envVars.map((e, i) => 
+        i === index ? { ...e, name } : e
+      )
+    }));
+  };
+
+  const removeEnvVar = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      envVars: prev.envVars.filter((_, i) => i !== index)
+    }));
+  };
+
+  // ConfigMap env source management
+  const addConfigMapEnvSource = () => {
+    setFormData(prev => ({
+      ...prev,
+      configMapEnvSources: [...prev.configMapEnvSources, { configMapName: '' }]
+    }));
+  };
+
+  const updateConfigMapEnvSource = (index: number, configMapName: string) => {
+    setFormData(prev => ({
+      ...prev,
+      configMapEnvSources: prev.configMapEnvSources.map((c, i) => 
+        i === index ? { configMapName } : c
+      )
+    }));
+  };
+
+  const removeConfigMapEnvSource = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      configMapEnvSources: prev.configMapEnvSources.filter((_, i) => i !== index)
+    }));
   };
 
   const handleSubmit = () => {
@@ -78,25 +174,19 @@ export function ServicesTab({ template }: ServicesTabProps) {
       return;
     }
 
-    const routes = formData.routes
-      .split(',')
-      .map((r) => r.trim())
-      .filter(Boolean)
-      .map((path) => ({ path: path.startsWith('/') ? path : `/${path}` }));
-
-    const envVars = formData.envVars
-      .split(',')
-      .map((e) => e.trim())
-      .filter(Boolean)
-      .map((name) => ({ name, required: false }));
+    const routes = formData.routes.filter(r => r.path.trim());
+    const envVars = formData.envVars.filter(e => e.name.trim());
+    const configMapEnvSources = formData.configMapEnvSources.filter(c => c.configMapName);
 
     if (editingService) {
       updateService(editingService.id, {
         name: formData.name,
         routes,
         envVars,
+        healthCheckEnabled: formData.healthCheckEnabled,
         livenessPath: formData.livenessPath,
         readinessPath: formData.readinessPath,
+        configMapEnvSources,
       });
       toast.success('Service updated');
     } else {
@@ -106,8 +196,10 @@ export function ServicesTab({ template }: ServicesTabProps) {
         name: formData.name,
         routes,
         envVars,
+        healthCheckEnabled: formData.healthCheckEnabled,
         livenessPath: formData.livenessPath,
         readinessPath: formData.readinessPath,
+        configMapEnvSources,
       };
       addService(service);
       toast.success('Service added');
@@ -185,7 +277,7 @@ export function ServicesTab({ template }: ServicesTabProps) {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center gap-2 text-sm">
-                  <Route className="h-4 w-4 text-primary" />
+                  <RouteIcon className="h-4 w-4 text-primary" />
                   <span className="text-muted-foreground">Routes:</span>
                   <div className="flex flex-wrap gap-1">
                     {service.routes.length > 0 ? (
@@ -204,16 +296,31 @@ export function ServicesTab({ template }: ServicesTabProps) {
                   <span className="text-muted-foreground">Env vars:</span>
                   <span className="text-xs">{service.envVars.length}</span>
                 </div>
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Heart className="h-3 w-3 text-success" />
-                    {service.livenessPath}
+                {service.configMapEnvSources && service.configMapEnvSources.length > 0 && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <FileText className="h-4 w-4 text-warning" />
+                    <span className="text-muted-foreground">ConfigMap envs:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {service.configMapEnvSources.map((c, i) => (
+                        <Badge key={i} variant="outline" className="font-mono text-xs">
+                          {c.configMapName}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Activity className="h-3 w-3 text-primary" />
-                    {service.readinessPath}
+                )}
+                {(service.healthCheckEnabled ?? true) && (
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Heart className="h-3 w-3 text-success" />
+                      {service.livenessPath}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Activity className="h-3 w-3 text-primary" />
+                      {service.readinessPath}
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -222,7 +329,7 @@ export function ServicesTab({ template }: ServicesTabProps) {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingService ? 'Edit Service' : 'Add Service'}
@@ -231,7 +338,8 @@ export function ServicesTab({ template }: ServicesTabProps) {
               Define a microservice for your Helm chart
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-6 py-4">
+            {/* Service Name */}
             <div className="space-y-2">
               <Label htmlFor="name">Service Name *</Label>
               <Input
@@ -247,55 +355,174 @@ export function ServicesTab({ template }: ServicesTabProps) {
                 Must be DNS-safe (lowercase, alphanumeric, hyphens)
               </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="routes">Routes (comma-separated)</Label>
-              <Input
-                id="routes"
-                placeholder="/api, /health, /metrics"
-                value={formData.routes}
-                onChange={(e) =>
-                  setFormData({ ...formData, routes: e.target.value })
-                }
-                className="font-mono"
-              />
+
+            {/* Routes */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Routes</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addRoute}>
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Route
+                </Button>
+              </div>
+              {formData.routes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No routes defined</p>
+              ) : (
+                <div className="space-y-2">
+                  {formData.routes.map((route, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        placeholder="/api/v1"
+                        value={route.path}
+                        onChange={(e) => updateRoute(index, e.target.value)}
+                        className="font-mono"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-destructive shrink-0"
+                        onClick={() => removeRoute(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="envVars">Environment Variables (comma-separated)</Label>
-              <Input
-                id="envVars"
-                placeholder="DATABASE_URL, API_KEY, LOG_LEVEL"
-                value={formData.envVars}
-                onChange={(e) =>
-                  setFormData({ ...formData, envVars: e.target.value })
-                }
-                className="font-mono"
-              />
+
+            {/* Environment Variables */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Environment Variables</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addEnvVar}>
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Variable
+                </Button>
+              </div>
+              {formData.envVars.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No environment variables defined</p>
+              ) : (
+                <div className="space-y-2">
+                  {formData.envVars.map((envVar, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        placeholder="DATABASE_URL"
+                        value={envVar.name}
+                        onChange={(e) => updateEnvVar(index, e.target.value)}
+                        className="font-mono"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-destructive shrink-0"
+                        onClick={() => removeEnvVar(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="livenessPath">Liveness Path</Label>
-                <Input
-                  id="livenessPath"
-                  placeholder="/health"
-                  value={formData.livenessPath}
-                  onChange={(e) =>
-                    setFormData({ ...formData, livenessPath: e.target.value })
+
+            {/* ConfigMap as Environment Sources */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Mount ConfigMaps as Environment</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Load all keys from a ConfigMap as environment variables
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addConfigMapEnvSource}>
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add ConfigMap
+                </Button>
+              </div>
+              {formData.configMapEnvSources.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No ConfigMaps mounted</p>
+              ) : (
+                <div className="space-y-2">
+                  {formData.configMapEnvSources.map((source, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Select
+                        value={source.configMapName}
+                        onValueChange={(value) => updateConfigMapEnvSource(index, value)}
+                      >
+                        <SelectTrigger className="font-mono">
+                          <SelectValue placeholder="Select ConfigMap" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {template.configMaps.map((cm) => (
+                            <SelectItem key={cm.id} value={cm.name} className="font-mono">
+                              {cm.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-destructive shrink-0"
+                        onClick={() => removeConfigMapEnvSource(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Health Check Toggle */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Health Checks</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enable liveness and readiness probes
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.healthCheckEnabled}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, healthCheckEnabled: checked })
                   }
-                  className="font-mono"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="readinessPath">Readiness Path</Label>
-                <Input
-                  id="readinessPath"
-                  placeholder="/ready"
-                  value={formData.readinessPath}
-                  onChange={(e) =>
-                    setFormData({ ...formData, readinessPath: e.target.value })
-                  }
-                  className="font-mono"
-                />
-              </div>
+
+              {formData.healthCheckEnabled && (
+                <div className="grid gap-4 sm:grid-cols-2 pl-4 border-l-2 border-muted">
+                  <div className="space-y-2">
+                    <Label htmlFor="livenessPath">Liveness Path</Label>
+                    <Input
+                      id="livenessPath"
+                      placeholder="/health"
+                      value={formData.livenessPath}
+                      onChange={(e) =>
+                        setFormData({ ...formData, livenessPath: e.target.value })
+                      }
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="readinessPath">Readiness Path</Label>
+                    <Input
+                      id="readinessPath"
+                      placeholder="/ready"
+                      value={formData.readinessPath}
+                      onChange={(e) =>
+                        setFormData({ ...formData, readinessPath: e.target.value })
+                      }
+                      className="font-mono"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

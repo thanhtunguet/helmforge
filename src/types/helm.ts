@@ -8,14 +8,20 @@ export interface EnvVarSchema {
   required?: boolean;
 }
 
+export interface ConfigMapEnvSource {
+  configMapName: string;
+}
+
 export interface Service {
   id: string;
   templateId: string;
   name: string;
   routes: Route[];
   envVars: EnvVarSchema[];
+  healthCheckEnabled: boolean;
   livenessPath: string;
   readinessPath: string;
+  configMapEnvSources: ConfigMapEnvSource[];
 }
 
 export interface ConfigMapKey {
@@ -44,6 +50,8 @@ export interface TLSSecret {
   templateId: string;
   name: string;
   type: 'tls';
+  cert?: string;
+  key?: string;
 }
 
 export interface IngressRule {
