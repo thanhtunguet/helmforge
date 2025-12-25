@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import {
   LayoutDashboard,
   Box,
@@ -154,9 +155,12 @@ export function Sidebar() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <FileCode2 className="h-4 w-4" />
-            <span>Helm v3 Compatible</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <FileCode2 className="h-4 w-4" />
+              <span>Helm v3 Compatible</span>
+            </div>
+            <ThemeSwitcher />
           </div>
         </div>
       </div>

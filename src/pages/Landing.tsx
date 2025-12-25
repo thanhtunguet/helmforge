@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import {
   Layers,
   Server,
@@ -75,6 +76,7 @@ export default function Landing() {
                 Documentation
               </Button>
             </Link>
+            <ThemeSwitcher />
             <Link to="/auth">
               <Button size="sm">
                 Get Started

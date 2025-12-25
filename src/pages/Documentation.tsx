@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,6 +15,8 @@ import {
   Settings,
   FileCode,
   Layers,
+  Key,
+  Package,
 } from 'lucide-react';
 
 const sections = [
@@ -225,6 +228,124 @@ The Nginx Config tab shows the dynamically generated configuration including:
 - Configure appropriate timeouts for your workloads
     `,
   },
+  {
+    id: 'service-accounts',
+    title: 'Service Accounts',
+    icon: Key,
+    content: `
+## Service Accounts for Registry Access
+
+Service accounts enable external services and CI/CD pipelines to authenticate with your private Helm registry.
+
+### What Are Service Accounts?
+Service accounts are machine credentials that allow automated systems to:
+- Pull Helm charts from your private registry
+- Access the chart index for specific templates
+- Download chart packages for deployment
+
+### Creating a Service Account
+
+1. Navigate to Service Accounts in the sidebar
+2. Click "New Service Account"
+3. Enter a name and optional description
+4. Save to generate an API key
+
+**Important**: The API key is shown only once. Store it securely!
+
+### Managing Template Access
+Each service account can access specific templates:
+- Click "Manage Access" on a service account
+- Select which templates the account can access
+- Only assigned templates will be available via the registry API
+
+### API Key Format
+API keys are prefixed for identification:
+- Format: \`sa_xxxxxxxxxxxx\`
+- The prefix appears in logs for auditing
+- Keys are securely hashed before storage
+
+### Deactivating Accounts
+Service accounts can be:
+- **Deactivated**: Temporarily disable access without deleting
+- **Deleted**: Permanently remove the account and revoke access
+    `,
+  },
+  {
+    id: 'helm-registry',
+    title: 'Helm Registry',
+    icon: Package,
+    content: `
+## Private Helm Registry
+
+Helm Designer includes a built-in private Helm registry that serves your chart templates.
+
+### Registry URL Structure
+Your registry endpoints follow this pattern:
+\`\`\`
+Base URL: https://qhlmyvbnulhngkfqrpjv.supabase.co/functions/v1/helm-registry
+\`\`\`
+
+### Available Endpoints
+
+**Chart Index**
+\`\`\`
+GET /{template-id}/index.yaml
+\`\`\`
+Returns the Helm repository index with all available versions.
+
+**Chart Package**
+\`\`\`
+GET /{template-id}/charts/{chart-name}-{version}.tgz
+\`\`\`
+Downloads the packaged Helm chart for a specific version.
+
+### Authentication
+All registry endpoints require API key authentication:
+\`\`\`
+Authorization: Bearer sa_your_api_key_here
+\`\`\`
+
+### Adding the Repository to Helm
+
+1. Create a service account and get the API key
+2. Grant access to the desired template
+3. Add the repository:
+\`\`\`bash
+helm repo add my-charts \\
+  https://qhlmyvbnulhngkfqrpjv.supabase.co/functions/v1/helm-registry/{template-id} \\
+  --username sa --password sa_your_api_key_here
+\`\`\`
+
+### Installing Charts
+Once added, install charts normally:
+\`\`\`bash
+helm repo update
+helm install my-release my-charts/{chart-name} --version 1.0.0
+\`\`\`
+
+### CI/CD Integration
+For automated deployments:
+1. Store the API key as a CI/CD secret
+2. Use environment variables for authentication
+3. Include helm repo add in your pipeline
+
+Example GitHub Actions:
+\`\`\`yaml
+- name: Add Helm Repo
+  run: |
+    helm repo add private-charts \\
+      \${{ secrets.HELM_REGISTRY_URL }} \\
+      --username sa \\
+      --password \${{ secrets.HELM_API_KEY }}
+\`\`\`
+
+### Security Best Practices
+- Rotate API keys periodically
+- Use separate service accounts per environment
+- Grant minimal template access (principle of least privilege)
+- Monitor access logs for suspicious activity
+    `,
+  },
 ];
 
 export default function Documentation() {
@@ -240,6 +361,7 @@ export default function Documentation() {
             <span className="font-semibold text-lg">Helm Designer</span>
           </Link>
           <nav className="flex items-center gap-4">
+            <ThemeSwitcher />
             <Link to="/auth">
               <Button size="sm">
                 Get Started
