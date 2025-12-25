@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import NewTemplate from "./pages/NewTemplate";
 import TemplateDetail from "./pages/TemplateDetail";
 import NewVersion from "./pages/NewVersion";
+import ServiceAccounts from "./pages/ServiceAccounts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <NewVersion />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/service-accounts"
+              element={
+                <ProtectedRoute>
+                  <ServiceAccounts />
                 </ProtectedRoute>
               }
             />

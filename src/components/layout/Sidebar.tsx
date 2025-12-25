@@ -10,6 +10,7 @@ import {
   LogOut,
   User,
   BookOpen,
+  Key,
 } from 'lucide-react';
 import { useHelmStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ export function Sidebar() {
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/templates/new', icon: Plus, label: 'New Template' },
+    { path: '/service-accounts', icon: Key, label: 'Service Accounts' },
   ];
 
   const userInitials = user?.email?.charAt(0).toUpperCase() || 'U';

@@ -14,6 +14,149 @@ export type Database = {
   }
   public: {
     Tables: {
+      chart_versions: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          id: string
+          template_id: string
+          values: Json
+          version_name: string
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          id?: string
+          template_id: string
+          values?: Json
+          version_name: string
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          id?: string
+          template_id?: string
+          values?: Json
+          version_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chart_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      config_maps: {
+        Row: {
+          created_at: string
+          id: string
+          keys: Json
+          name: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          keys?: Json
+          name: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          keys?: Json
+          name?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_maps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ingresses: {
+        Row: {
+          created_at: string
+          default_host: string | null
+          id: string
+          mode: string
+          name: string
+          rules: Json
+          template_id: string
+          tls_enabled: boolean
+          tls_secret_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          default_host?: string | null
+          id?: string
+          mode?: string
+          name: string
+          rules?: Json
+          template_id: string
+          tls_enabled?: boolean
+          tls_secret_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          default_host?: string | null
+          id?: string
+          mode?: string
+          name?: string
+          rules?: Json
+          template_id?: string
+          tls_enabled?: boolean
+          tls_secret_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ingresses_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      opaque_secrets: {
+        Row: {
+          created_at: string
+          id: string
+          keys: Json
+          name: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          keys?: Json
+          name: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          keys?: Json
+          name?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opaque_secrets_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -41,12 +184,226 @@ export type Database = {
         }
         Relationships: []
       }
+      service_account_template_access: {
+        Row: {
+          created_at: string
+          id: string
+          service_account_id: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          service_account_id: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          service_account_id?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_account_template_access_service_account_id_fkey"
+            columns: ["service_account_id"]
+            isOneToOne: false
+            referencedRelation: "service_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_account_template_access_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_accounts: {
+        Row: {
+          api_key_hash: string
+          api_key_prefix: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          last_used_at: string | null
+          name: string
+          user_id: string
+        }
+        Insert: {
+          api_key_hash: string
+          api_key_prefix: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          name: string
+          user_id: string
+        }
+        Update: {
+          api_key_hash?: string
+          api_key_prefix?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          config_map_env_sources: Json
+          created_at: string
+          env_vars: Json
+          health_check_enabled: boolean
+          id: string
+          liveness_path: string | null
+          name: string
+          readiness_path: string | null
+          routes: Json
+          secret_env_sources: Json
+          template_id: string
+          use_stateful_set: boolean
+        }
+        Insert: {
+          config_map_env_sources?: Json
+          created_at?: string
+          env_vars?: Json
+          health_check_enabled?: boolean
+          id?: string
+          liveness_path?: string | null
+          name: string
+          readiness_path?: string | null
+          routes?: Json
+          secret_env_sources?: Json
+          template_id: string
+          use_stateful_set?: boolean
+        }
+        Update: {
+          config_map_env_sources?: Json
+          created_at?: string
+          env_vars?: Json
+          health_check_enabled?: boolean
+          id?: string
+          liveness_path?: string | null
+          name?: string
+          readiness_path?: string | null
+          routes?: Json
+          secret_env_sources?: Json
+          template_id?: string
+          use_stateful_set?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          enable_nginx_gateway: boolean
+          enable_redis: boolean
+          id: string
+          name: string
+          registry_project: string | null
+          registry_secret: Json | null
+          registry_url: string | null
+          shared_port: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          enable_nginx_gateway?: boolean
+          enable_redis?: boolean
+          id?: string
+          name: string
+          registry_project?: string | null
+          registry_secret?: Json | null
+          registry_url?: string | null
+          shared_port?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          enable_nginx_gateway?: boolean
+          enable_redis?: boolean
+          id?: string
+          name?: string
+          registry_project?: string | null
+          registry_secret?: Json | null
+          registry_url?: string | null
+          shared_port?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tls_secrets: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tls_secrets_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      check_template_access: {
+        Args: { p_service_account_id: string; p_template_id: string }
+        Returns: boolean
+      }
+      update_service_account_last_used: {
+        Args: { p_service_account_id: string }
+        Returns: undefined
+      }
+      validate_service_account_key: {
+        Args: { p_api_key: string }
+        Returns: {
+          is_valid: boolean
+          service_account_id: string
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

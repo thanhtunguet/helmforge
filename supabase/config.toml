@@ -1,1 +1,4 @@
 project_id = "qhlmyvbnulhngkfqrpjv"
+
+[functions.helm-registry]
+verify_jwt = false
