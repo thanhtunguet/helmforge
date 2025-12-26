@@ -1,5 +1,5 @@
-import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import pako from 'pako';
 import { TemplateWithRelations, ChartVersion } from '@/types/helm';
 
 export function generateChartYaml(template: TemplateWithRelations, version: ChartVersion): string {
@@ -158,12 +158,13 @@ spec:
         - name: {{ .Release.Name }}-registry-secret
       containers:
         - name: ${serviceName}
-          image: "{{ .Values.global.registry.url }}/{{ .Values.global.registry.project }}/${serviceName}:{{ .Values.services.${serviceName}.imageTag }}"
+          image: "{{ .Values.global.registry.url }}/{{ .Values.global.registry.project }}/${serviceName}:{{ index .Values.services "${serviceName}" "imageTag" }}"
           ports:
             - containerPort: {{ .Values.global.sharedPort }}
-          {{- if .Values.services.${serviceName}.env }}
+          {{- $serviceValues := index .Values.services "${serviceName}" }}
+          {{- if $serviceValues.env }}
           env:
-            {{- range $key, $value := .Values.services.${serviceName}.env }}
+            {{- range $key, $value := $serviceValues.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
@@ -416,64 +417,145 @@ spec:
 `;
 }
 
+// Helper function to create a tar header for a file
+function createTarHeader(name: string, size: number, offset: number): Uint8Array {
+  const header = new Uint8Array(512);
+  const encoder = new TextEncoder();
+  const nameBytes = encoder.encode(name);
+  
+  // Copy filename (max 100 bytes)
+  header.set(nameBytes.slice(0, 100), 0);
+  
+  // File mode (octal 0644)
+  encoder.encodeInto('0000644', header.subarray(100, 108));
+  
+  // UID and GID (0)
+  encoder.encodeInto('0000000', header.subarray(108, 116));
+  encoder.encodeInto('0000000', header.subarray(116, 124));
+  
+  // File size (octal, 12 bytes)
+  const sizeOctal = size.toString(8).padStart(11, '0') + ' ';
+  encoder.encodeInto(sizeOctal, header.subarray(124, 136));
+  
+  // Modification time (current time in octal)
+  const mtime = Math.floor(Date.now() / 1000).toString(8).padStart(11, '0') + ' ';
+  encoder.encodeInto(mtime, header.subarray(136, 148));
+  
+  // Type flag (0 = normal file)
+  header[156] = 0x30;
+  
+  // Calculate checksum
+  let checksum = 256; // Sum of all bytes including checksum field
+  for (let i = 0; i < 512; i++) {
+    if (i < 148 || i >= 156) {
+      checksum += header[i];
+    }
+  }
+  const checksumOctal = checksum.toString(8).padStart(6, '0') + '\0 ';
+  encoder.encodeInto(checksumOctal, header.subarray(148, 156));
+  
+  return header;
+}
+
+// Helper function to pad data to 512-byte blocks
+function padToBlock(data: Uint8Array): Uint8Array {
+  const blockSize = 512;
+  const remainder = data.length % blockSize;
+  if (remainder === 0) return data;
+  
+  const padding = new Uint8Array(blockSize - remainder);
+  const result = new Uint8Array(data.length + padding.length);
+  result.set(data);
+  result.set(padding, data.length);
+  return result;
+}
+
+// Create tar.gz archive from file entries
+function createTarGz(files: Array<{ name: string; content: string }>): Blob {
+  const tarParts: Uint8Array[] = [];
+  
+  // Add each file to the tar archive
+  for (const file of files) {
+    const encoder = new TextEncoder();
+    const contentBytes = encoder.encode(file.content);
+    
+    // Create tar header
+    const header = createTarHeader(file.name, contentBytes.length, tarParts.reduce((sum, part) => sum + part.length, 0));
+    tarParts.push(header);
+    
+    // Add file content and pad to 512-byte boundary
+    tarParts.push(padToBlock(contentBytes));
+  }
+  
+  // Add two empty blocks at the end (tar terminator)
+  tarParts.push(new Uint8Array(1024));
+  
+  // Combine all parts
+  const totalLength = tarParts.reduce((sum, part) => sum + part.length, 0);
+  const tarData = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const part of tarParts) {
+    tarData.set(part, offset);
+    offset += part.length;
+  }
+  
+  // Gzip the tar data
+  const gzipped = pako.gzip(tarData);
+  
+  return new Blob([gzipped], { type: 'application/gzip' });
+}
+
 export async function downloadChart(
   template: TemplateWithRelations,
   version: ChartVersion
 ): Promise<void> {
-  const zip = new JSZip();
   const chartName = template.name.toLowerCase().replace(/\s+/g, '-');
-  const folder = zip.folder(chartName);
-
-  if (!folder) throw new Error('Failed to create zip folder');
+  const files: Array<{ name: string; content: string }> = [];
 
   // Chart.yaml
-  folder.file('Chart.yaml', generateChartYaml(template, version));
+  files.push({ name: `${chartName}/Chart.yaml`, content: generateChartYaml(template, version) });
 
   // values.yaml
-  folder.file('values.yaml', generateValuesYaml(template, version));
-
-  // templates folder
-  const templates = folder.folder('templates');
-  if (!templates) throw new Error('Failed to create templates folder');
+  files.push({ name: `${chartName}/values.yaml`, content: generateValuesYaml(template, version) });
 
   // Service deployments and services
   template.services.forEach((svc) => {
-    templates.file(`deployment-${svc.name}.yaml`, generateDeploymentYaml(svc.name, template));
-    templates.file(`service-${svc.name}.yaml`, generateServiceYaml(svc.name, template));
+    files.push({ name: `${chartName}/templates/deployment-${svc.name}.yaml`, content: generateDeploymentYaml(svc.name, template) });
+    files.push({ name: `${chartName}/templates/service-${svc.name}.yaml`, content: generateServiceYaml(svc.name, template) });
   });
 
   // ConfigMaps
   template.configMaps.forEach((cm) => {
-    templates.file(`configmap-${cm.name}.yaml`, generateConfigMapYaml(cm.name, template));
+    files.push({ name: `${chartName}/templates/configmap-${cm.name}.yaml`, content: generateConfigMapYaml(cm.name, template) });
   });
 
   // Registry secret
-  templates.file('secret-registry.yaml', generateRegistrySecretYaml(template));
+  files.push({ name: `${chartName}/templates/secret-registry.yaml`, content: generateRegistrySecretYaml(template) });
 
   // TLS secrets
   template.tlsSecrets.forEach((secret) => {
-    templates.file(`secret-tls-${secret.name}.yaml`, generateTLSSecretYaml(secret.name));
+    files.push({ name: `${chartName}/templates/secret-tls-${secret.name}.yaml`, content: generateTLSSecretYaml(secret.name) });
   });
 
   // Nginx gateway
   if (version.values.enableNginxGateway ?? template.enableNginxGateway) {
-    templates.file('configmap-nginx-gateway.yaml', generateNginxConfigMap(template));
-    templates.file('deployment-nginx-gateway.yaml', generateNginxDeploymentYaml());
-    templates.file('service-nginx-gateway.yaml', generateNginxServiceYaml());
+    files.push({ name: `${chartName}/templates/configmap-nginx-gateway.yaml`, content: generateNginxConfigMap(template) });
+    files.push({ name: `${chartName}/templates/deployment-nginx-gateway.yaml`, content: generateNginxDeploymentYaml() });
+    files.push({ name: `${chartName}/templates/service-nginx-gateway.yaml`, content: generateNginxServiceYaml() });
   }
 
   // Redis
   if (version.values.enableRedis ?? template.enableRedis) {
-    templates.file('deployment-redis.yaml', generateRedisDeploymentYaml());
-    templates.file('service-redis.yaml', generateRedisServiceYaml());
+    files.push({ name: `${chartName}/templates/deployment-redis.yaml`, content: generateRedisDeploymentYaml() });
+    files.push({ name: `${chartName}/templates/service-redis.yaml`, content: generateRedisServiceYaml() });
   }
 
   // Ingresses
   template.ingresses.forEach((ing) => {
-    templates.file(`ingress-${ing.name}.yaml`, generateIngressYaml(ing.name, template));
+    files.push({ name: `${chartName}/templates/ingress-${ing.name}.yaml`, content: generateIngressYaml(ing.name, template) });
   });
 
-  // Generate and download
-  const content = await zip.generateAsync({ type: 'blob' });
+  // Generate tar.gz and download
+  const content = createTarGz(files);
   saveAs(content, `${chartName}-${version.versionName}.tgz`);
 }

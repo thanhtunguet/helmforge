@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import JSZip from 'https://esm.sh/jszip@3.10.1';
+import { Tar } from 'https://deno.land/std@0.168.0/archive/tar.ts';
+import pako from 'https://esm.sh/pako@2.1.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -257,12 +258,13 @@ spec:
         - name: {{ .Release.Name }}-registry-secret
       containers:
         - name: ${serviceName}
-          image: "{{ .Values.global.registry.url }}/{{ .Values.global.registry.project }}/${serviceName}:{{ .Values.services.${serviceName}.imageTag }}"
+          image: "{{ .Values.global.registry.url }}/{{ .Values.global.registry.project }}/${serviceName}:{{ index .Values.services "${serviceName}" "imageTag" }}"
           ports:
             - containerPort: {{ .Values.global.sharedPort }}
-          {{- if .Values.services.${serviceName}.env }}
+          {{- $serviceValues := index .Values.services "${serviceName}" }}
+          {{- if $serviceValues.env }}
           env:
-            {{- range $key, $value := .Values.services.${serviceName}.env }}
+            {{- range $key, $value := $serviceValues.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
@@ -526,62 +528,108 @@ async function generateChartPackage(
   template: TemplateWithRelations,
   version: ChartVersion
 ): Promise<string> {
-  const zip = new JSZip();
   const chartName = template.name.toLowerCase().replace(/\s+/g, '-');
-  const folder = zip.folder(chartName);
-
-  if (!folder) throw new Error('Failed to create zip folder');
+  
+  // Create tar archive
+  const tar = new Tar();
+  
+  // Helper function to add file to tar
+  const addFile = (path: string, content: string) => {
+    // Normalize line endings to LF and ensure content ends with newline
+    const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const contentWithNewline = normalizedContent.endsWith('\n') ? normalizedContent : normalizedContent + '\n';
+    
+    const encoder = new TextEncoder();
+    const contentBytes = encoder.encode(contentWithNewline);
+    
+    // Create a fresh reader for each file
+    const contentBytesCopy = new Uint8Array(contentBytes);
+    let offset = 0;
+    const reader: Deno.Reader = {
+      read(p: Uint8Array): Promise<number | null> {
+        if (offset >= contentBytesCopy.length) {
+          return Promise.resolve(null);
+        }
+        const bytesToRead = Math.min(p.length, contentBytesCopy.length - offset);
+        p.set(contentBytesCopy.subarray(offset, offset + bytesToRead));
+        offset += bytesToRead;
+        return Promise.resolve(bytesToRead);
+      },
+    };
+    tar.append(path, {
+      reader,
+      contentSize: contentBytesCopy.length,
+    });
+  };
 
   // Chart.yaml
-  folder.file('Chart.yaml', generateChartYaml(template, version));
+  addFile(`${chartName}/Chart.yaml`, generateChartYaml(template, version));
 
   // values.yaml
-  folder.file('values.yaml', generateValuesYaml(template, version));
-
-  // templates folder
-  const templates = folder.folder('templates');
-  if (!templates) throw new Error('Failed to create templates folder');
+  addFile(`${chartName}/values.yaml`, generateValuesYaml(template, version));
 
   // Service deployments and services
   template.services.forEach((svc) => {
-    templates.file(`deployment-${svc.name}.yaml`, generateDeploymentYaml(svc.name, svc));
-    templates.file(`service-${svc.name}.yaml`, generateServiceYaml(svc.name));
+    addFile(`${chartName}/templates/deployment-${svc.name}.yaml`, generateDeploymentYaml(svc.name, svc));
+    addFile(`${chartName}/templates/service-${svc.name}.yaml`, generateServiceYaml(svc.name));
   });
 
   // ConfigMaps
   template.config_maps.forEach((cm) => {
-    templates.file(`configmap-${cm.name}.yaml`, generateConfigMapYaml(cm.name));
+    addFile(`${chartName}/templates/configmap-${cm.name}.yaml`, generateConfigMapYaml(cm.name));
   });
 
   // Registry secret
-  templates.file('secret-registry.yaml', generateRegistrySecretYaml(template));
+  addFile(`${chartName}/templates/secret-registry.yaml`, generateRegistrySecretYaml(template));
 
   // TLS secrets
   template.tls_secrets.forEach((secret) => {
-    templates.file(`secret-tls-${secret.name}.yaml`, generateTLSSecretYaml(secret.name));
+    addFile(`${chartName}/templates/secret-tls-${secret.name}.yaml`, generateTLSSecretYaml(secret.name));
   });
 
   // Nginx gateway
   if (version.values.enableNginxGateway ?? template.enable_nginx_gateway) {
-    templates.file('configmap-nginx-gateway.yaml', generateNginxConfigMap(template));
-    templates.file('deployment-nginx-gateway.yaml', generateNginxDeploymentYaml());
-    templates.file('service-nginx-gateway.yaml', generateNginxServiceYaml());
+    addFile(`${chartName}/templates/configmap-nginx-gateway.yaml`, generateNginxConfigMap(template));
+    addFile(`${chartName}/templates/deployment-nginx-gateway.yaml`, generateNginxDeploymentYaml());
+    addFile(`${chartName}/templates/service-nginx-gateway.yaml`, generateNginxServiceYaml());
   }
 
   // Redis
   if (version.values.enableRedis ?? template.enable_redis) {
-    templates.file('deployment-redis.yaml', generateRedisDeploymentYaml());
-    templates.file('service-redis.yaml', generateRedisServiceYaml());
+    addFile(`${chartName}/templates/deployment-redis.yaml`, generateRedisDeploymentYaml());
+    addFile(`${chartName}/templates/service-redis.yaml`, generateRedisServiceYaml());
   }
 
   // Ingresses
   template.ingresses.forEach((ing) => {
-    templates.file(`ingress-${ing.name}.yaml`, generateIngressYaml(ing.name, ing));
+    addFile(`${chartName}/templates/ingress-${ing.name}.yaml`, generateIngressYaml(ing.name, ing));
   });
 
-  // Generate as base64 and return
-  const content = await zip.generateAsync({ type: 'base64' });
-  return content;
+  // Write tar to buffer
+  const tarChunks: Uint8Array[] = [];
+  const writer: Deno.Writer = {
+    write(p: Uint8Array): Promise<number> {
+      tarChunks.push(new Uint8Array(p));
+      return Promise.resolve(p.length);
+    },
+  };
+  await tar.write(writer);
+  
+  // Combine chunks
+  const totalLength = tarChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const tarBytes = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of tarChunks) {
+    tarBytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  // Gzip the tar archive using pako
+  const gzipped = pako.gzip(tarBytes);
+  
+  // Convert to base64
+  const base64 = btoa(String.fromCharCode(...gzipped));
+  return base64;
 }
 
 // Hash API key using SHA-256
