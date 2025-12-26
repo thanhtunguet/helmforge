@@ -23,7 +23,6 @@ export default function NewTemplate() {
     registryUrl: '',
     registryProject: '',
     registryUsername: '',
-    registryPassword: '',
     registryEmail: '',
     enableNginxGateway: true,
     enableRedis: false,
@@ -54,7 +53,6 @@ export default function NewTemplate() {
         type: 'registry',
         server: formData.registryUrl,
         username: formData.registryUsername,
-        password: formData.registryPassword,
         email: formData.registryEmail,
       },
       enableNginxGateway: formData.enableNginxGateway,
@@ -209,34 +207,24 @@ export default function NewTemplate() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="registryPassword">Password</Label>
+                    <Label htmlFor="registryEmail">Email (optional)</Label>
                     <Input
-                      id="registryPassword"
-                      type="password"
-                      placeholder="••••••••"
-                      value={formData.registryPassword}
+                      id="registryEmail"
+                      type="email"
+                      placeholder="registry@company.com"
+                      value={formData.registryEmail}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          registryPassword: e.target.value,
+                          registryEmail: e.target.value,
                         })
                       }
                     />
                   </div>
                 </div>
-                <div className="mt-4 space-y-2">
-                  <Label htmlFor="registryEmail">Email (optional)</Label>
-                  <Input
-                    id="registryEmail"
-                    type="email"
-                    placeholder="devops@company.com"
-                    value={formData.registryEmail}
-                    onChange={(e) =>
-                      setFormData({ ...formData, registryEmail: e.target.value })
-                    }
-                    className="sm:w-1/2"
-                  />
-                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  For security, registry passwords are not stored. They should be provided during Helm chart deployment via values.yaml.
+                </p>
               </div>
             </CardContent>
           </Card>

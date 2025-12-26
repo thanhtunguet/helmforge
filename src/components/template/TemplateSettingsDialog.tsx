@@ -36,7 +36,6 @@ export function TemplateSettingsDialog({
     registryUrl: template.registryUrl,
     registryProject: template.registryProject,
     registryUsername: template.registrySecret.username,
-    registryPassword: '',
     enableNginxGateway: template.enableNginxGateway,
     enableRedis: template.enableRedis,
   });
@@ -50,7 +49,6 @@ export function TemplateSettingsDialog({
         registryUrl: template.registryUrl,
         registryProject: template.registryProject,
         registryUsername: template.registrySecret.username,
-        registryPassword: '',
         enableNginxGateway: template.enableNginxGateway,
         enableRedis: template.enableRedis,
       });
@@ -73,7 +71,6 @@ export function TemplateSettingsDialog({
         ...template.registrySecret,
         server: formData.registryUrl,
         username: formData.registryUsername,
-        password: formData.registryPassword || template.registrySecret.password,
       },
       enableNginxGateway: formData.enableNginxGateway,
       enableRedis: formData.enableRedis,
@@ -166,29 +163,18 @@ export function TemplateSettingsDialog({
                 />
               </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="registryUsername">Username</Label>
-                <Input
-                  id="registryUsername"
-                  value={formData.registryUsername}
-                  onChange={(e) =>
-                    setFormData({ ...formData, registryUsername: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="registryPassword">Password (leave blank to keep)</Label>
-                <Input
-                  id="registryPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  value={formData.registryPassword}
-                  onChange={(e) =>
-                    setFormData({ ...formData, registryPassword: e.target.value })
-                  }
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="registryUsername">Username</Label>
+              <Input
+                id="registryUsername"
+                value={formData.registryUsername}
+                onChange={(e) =>
+                  setFormData({ ...formData, registryUsername: e.target.value })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                For security, registry passwords are not stored. They should be provided during Helm chart deployment.
+              </p>
             </div>
           </div>
 

@@ -49,7 +49,7 @@ export interface RegistrySecret {
   type: 'registry';
   server: string;
   username: string;
-  password: string;
+  // Note: password is NOT stored - it should be provided during chart deployment
   email?: string;
 }
 
