@@ -11,10 +11,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowLeft, Box, Server, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { Template } from '@/types/helm';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function NewTemplate() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const addTemplate = useHelmStore((state) => state.addTemplate);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -28,7 +32,7 @@ export default function NewTemplate() {
     enableRedis: false,
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name.trim()) {
@@ -41,8 +45,45 @@ export default function NewTemplate() {
       return;
     }
 
+    if (!user) {
+      toast.error('You must be logged in to create a template');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const templateId = crypto.randomUUID();
+
+    // Save to Supabase first
+    const { error } = await supabase.from('templates').insert({
+      id: templateId,
+      user_id: user.id,
+      name: formData.name,
+      description: formData.description || null,
+      shared_port: formData.sharedPort,
+      registry_url: formData.registryUrl,
+      registry_project: formData.registryProject || null,
+      registry_secret: {
+        name: 'registry-credentials',
+        type: 'registry',
+        server: formData.registryUrl,
+        username: formData.registryUsername,
+        email: formData.registryEmail,
+      },
+      enable_nginx_gateway: formData.enableNginxGateway,
+      enable_redis: formData.enableRedis,
+    });
+
+    if (error) {
+      console.error('Failed to save template to database:', error);
+      toast.error('Failed to create template');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Also save to local store for UI
     const template: Template = {
-      id: crypto.randomUUID(),
+      id: templateId,
       name: formData.name,
       description: formData.description,
       sharedPort: formData.sharedPort,
@@ -62,6 +103,7 @@ export default function NewTemplate() {
     };
 
     addTemplate(template);
+    setIsSubmitting(false);
     toast.success('Template created successfully');
     navigate(`/templates/${template.id}`);
   };
@@ -285,7 +327,9 @@ export default function NewTemplate() {
             >
               Cancel
             </Button>
-            <Button type="submit">Create Template</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : 'Create Template'}
+            </Button>
           </div>
         </form>
       </div>
