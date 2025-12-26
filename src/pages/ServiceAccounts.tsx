@@ -47,6 +47,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useHelmStore } from "@/lib/store";
 import {
   Plus,
   Key,
@@ -73,11 +74,6 @@ interface ServiceAccount {
   basic_username: string | null;
 }
 
-interface Template {
-  id: string;
-  name: string;
-}
-
 interface TemplateAccess {
   template_id: string;
 }
@@ -85,8 +81,8 @@ interface TemplateAccess {
 export default function ServiceAccounts() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const templates = useHelmStore((state) => state.templates);
   const [serviceAccounts, setServiceAccounts] = useState<ServiceAccount[]>([]);
-  const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isManageAccessOpen, setIsManageAccessOpen] = useState(false);
@@ -107,7 +103,6 @@ export default function ServiceAccounts() {
   useEffect(() => {
     if (user) {
       fetchServiceAccounts();
-      fetchTemplates();
     }
   }, [user]);
 
@@ -128,19 +123,6 @@ export default function ServiceAccounts() {
       })));
     }
     setLoading(false);
-  }
-
-  async function fetchTemplates() {
-    const { data, error } = await supabase
-      .from("templates")
-      .select("id, name")
-      .order("name");
-
-    if (error) {
-      console.error(error);
-    } else {
-      setTemplates(data || []);
-    }
   }
 
   async function fetchTemplateAccess(serviceAccountId: string) {
