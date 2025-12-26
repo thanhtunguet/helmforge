@@ -1,0 +1,3 @@
+- If you need to write document / memory files, prioritize to write it in docs/ directory.
+- Run eslint after making changes to format the code and find related issues.
+- Don't run dev server. If you need to do that to check code, ask user to do it manually.
