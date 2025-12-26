@@ -224,6 +224,9 @@ export type Database = {
         Row: {
           api_key_hash: string
           api_key_prefix: string
+          auth_type: string
+          basic_password_hash: string | null
+          basic_username: string | null
           created_at: string
           description: string | null
           id: string
@@ -235,6 +238,9 @@ export type Database = {
         Insert: {
           api_key_hash: string
           api_key_prefix: string
+          auth_type?: string
+          basic_password_hash?: string | null
+          basic_username?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -246,6 +252,9 @@ export type Database = {
         Update: {
           api_key_hash?: string
           api_key_prefix?: string
+          auth_type?: string
+          basic_password_hash?: string | null
+          basic_username?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -395,6 +404,14 @@ export type Database = {
       update_service_account_last_used: {
         Args: { p_service_account_id: string }
         Returns: undefined
+      }
+      validate_service_account_basic: {
+        Args: { p_password: string; p_username: string }
+        Returns: {
+          is_valid: boolean
+          service_account_id: string
+          user_id: string
+        }[]
       }
       validate_service_account_key: {
         Args: { p_api_key: string }

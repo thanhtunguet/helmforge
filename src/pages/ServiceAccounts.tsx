@@ -39,6 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -56,6 +57,7 @@ import {
   EyeOff,
   RefreshCw,
   Shield,
+  User,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -67,6 +69,8 @@ interface ServiceAccount {
   is_active: boolean;
   created_at: string;
   last_used_at: string | null;
+  auth_type: 'bearer' | 'basic';
+  basic_username: string | null;
 }
 
 interface Template {
@@ -91,10 +95,14 @@ export default function ServiceAccounts() {
   const [deleteAccount, setDeleteAccount] = useState<ServiceAccount | null>(null);
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [newBasicAuth, setNewBasicAuth] = useState<{ username: string; password: string } | null>(null);
 
   // Form state
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
+  const [formAuthType, setFormAuthType] = useState<'bearer' | 'basic'>('bearer');
+  const [formUsername, setFormUsername] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -114,7 +122,10 @@ export default function ServiceAccounts() {
       toast.error("Failed to load service accounts");
       console.error(error);
     } else {
-      setServiceAccounts(data || []);
+      setServiceAccounts((data || []).map(sa => ({
+        ...sa,
+        auth_type: sa.auth_type as 'bearer' | 'basic'
+      })));
     }
     setLoading(false);
   }
@@ -154,6 +165,15 @@ export default function ServiceAccounts() {
     return result;
   }
 
+  function generatePassword(): string {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+    let result = "";
+    for (let i = 0; i < 24; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
   async function hashApiKey(apiKey: string): Promise<string> {
     // Use Web Crypto API for SHA-256 hashing
     const encoder = new TextEncoder();
@@ -170,27 +190,68 @@ export default function ServiceAccounts() {
       return;
     }
 
-    const apiKey = generateApiKey();
-    const apiKeyHash = await hashApiKey(apiKey);
-    const apiKeyPrefix = apiKey.substring(0, 8);
+    if (formAuthType === 'basic' && !formUsername.trim()) {
+      toast.error("Username is required for basic authentication");
+      return;
+    }
 
-    const { data, error } = await supabase.from("service_accounts").insert({
+    let insertData: any = {
       user_id: user?.id,
       name: formName.trim(),
       description: formDescription.trim() || null,
-      api_key_hash: apiKeyHash,
-      api_key_prefix: apiKeyPrefix,
-    }).select().single();
+      auth_type: formAuthType,
+    };
 
-    if (error) {
-      toast.error("Failed to create service account");
-      console.error(error);
+    if (formAuthType === 'bearer') {
+      const apiKey = generateApiKey();
+      const apiKeyHash = await hashApiKey(apiKey);
+      const apiKeyPrefix = apiKey.substring(0, 8);
+      insertData = {
+        ...insertData,
+        api_key_hash: apiKeyHash,
+        api_key_prefix: apiKeyPrefix,
+      };
+
+      const { error } = await supabase.from("service_accounts").insert(insertData).select().single();
+
+      if (error) {
+        toast.error("Failed to create service account");
+        console.error(error);
+      } else {
+        setNewApiKey(apiKey);
+        setFormName("");
+        setFormDescription("");
+        setFormAuthType('bearer');
+        setFormUsername("");
+        fetchServiceAccounts();
+        toast.success("Service account created");
+      }
     } else {
-      setNewApiKey(apiKey);
-      setFormName("");
-      setFormDescription("");
-      fetchServiceAccounts();
-      toast.success("Service account created");
+      // Basic auth
+      const password = generatePassword();
+      const passwordHash = await hashApiKey(password);
+      insertData = {
+        ...insertData,
+        basic_username: formUsername.trim(),
+        basic_password_hash: passwordHash,
+        api_key_hash: '', // Required but not used for basic auth
+        api_key_prefix: 'basic',
+      };
+
+      const { error } = await supabase.from("service_accounts").insert(insertData).select().single();
+
+      if (error) {
+        toast.error("Failed to create service account");
+        console.error(error);
+      } else {
+        setNewBasicAuth({ username: formUsername.trim(), password });
+        setFormName("");
+        setFormDescription("");
+        setFormAuthType('bearer');
+        setFormUsername("");
+        fetchServiceAccounts();
+        toast.success("Service account created");
+      }
     }
   }
 
@@ -283,7 +344,9 @@ export default function ServiceAccounts() {
             setIsCreateOpen(open);
             if (!open) {
               setNewApiKey(null);
+              setNewBasicAuth(null);
               setShowApiKey(false);
+              setShowPassword(false);
             }
           }}>
             <DialogTrigger asChild>
@@ -337,6 +400,67 @@ export default function ServiceAccounts() {
                     </Button>
                   </DialogFooter>
                 </>
+              ) : newBasicAuth ? (
+                <>
+                  <DialogHeader>
+                    <DialogTitle>Basic Auth Credentials Created</DialogTitle>
+                    <DialogDescription>
+                      Copy these credentials now. You won't be able to see the password again.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Username</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={newBasicAuth.username}
+                          readOnly
+                          className="font-mono text-sm"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => copyToClipboard(newBasicAuth.username)}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Password</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          value={newBasicAuth.password}
+                          readOnly
+                          className="font-mono text-sm"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => copyToClipboard(newBasicAuth.password)}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={() => {
+                      setIsCreateOpen(false);
+                      setNewBasicAuth(null);
+                    }}>
+                      Done
+                    </Button>
+                  </DialogFooter>
+                </>
               ) : (
                 <>
                   <DialogHeader>
@@ -364,6 +488,50 @@ export default function ServiceAccounts() {
                         onChange={(e) => setFormDescription(e.target.value)}
                       />
                     </div>
+                    <div className="space-y-3">
+                      <Label>Authentication Type</Label>
+                      <RadioGroup
+                        value={formAuthType}
+                        onValueChange={(value) => setFormAuthType(value as 'bearer' | 'basic')}
+                        className="grid grid-cols-2 gap-4"
+                      >
+                        <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-muted/50">
+                          <RadioGroupItem value="bearer" id="bearer" />
+                          <div className="flex flex-col">
+                            <Label htmlFor="bearer" className="cursor-pointer font-medium flex items-center gap-2">
+                              <Key className="h-4 w-4" />
+                              Bearer Token
+                            </Label>
+                            <span className="text-xs text-muted-foreground">API key in header</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2 border rounded-lg p-3 cursor-pointer hover:bg-muted/50">
+                          <RadioGroupItem value="basic" id="basic" />
+                          <div className="flex flex-col">
+                            <Label htmlFor="basic" className="cursor-pointer font-medium flex items-center gap-2">
+                              <User className="h-4 w-4" />
+                              Basic Auth
+                            </Label>
+                            <span className="text-xs text-muted-foreground">Username & password</span>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                    {formAuthType === 'basic' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="username">Username</Label>
+                        <Input
+                          id="username"
+                          placeholder="e.g., helm-client"
+                          value={formUsername}
+                          onChange={(e) => setFormUsername(e.target.value)}
+                          className="font-mono"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          A secure password will be generated automatically
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
@@ -419,11 +587,16 @@ export default function ServiceAccounts() {
                   {`{base-url}/{templateId}/charts/{chartName}-{version}.tgz`}
                 </code>
               </p>
-              <p className="pt-2">
-                <strong>Authentication:</strong> Pass API key in{" "}
-                <code className="bg-muted px-1 rounded">X-API-Key</code> header or{" "}
-                <code className="bg-muted px-1 rounded">Authorization: Bearer</code>
-              </p>
+              <div className="pt-2 space-y-1">
+                <p><strong>Authentication options:</strong></p>
+                <p className="pl-4">• <strong>Bearer Token:</strong> Pass API key in{" "}
+                  <code className="bg-muted px-1 rounded">X-API-Key</code> header or{" "}
+                  <code className="bg-muted px-1 rounded">Authorization: Bearer &lt;key&gt;</code>
+                </p>
+                <p className="pl-4">• <strong>Basic Auth:</strong> Use{" "}
+                  <code className="bg-muted px-1 rounded">Authorization: Basic &lt;base64(username:password)&gt;</code>
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -450,7 +623,8 @@ export default function ServiceAccounts() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>API Key Prefix</TableHead>
+                    <TableHead>Auth Type</TableHead>
+                    <TableHead>Credentials</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Last Used</TableHead>
                     <TableHead>Created</TableHead>
@@ -471,9 +645,24 @@ export default function ServiceAccounts() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <code className="bg-muted px-2 py-1 rounded text-sm">
-                          {account.api_key_prefix}...
-                        </code>
+                        <Badge variant="outline" className="text-xs">
+                          {account.auth_type === 'bearer' ? (
+                            <><Key className="h-3 w-3 mr-1" />Bearer</>
+                          ) : (
+                            <><User className="h-3 w-3 mr-1" />Basic</>
+                          )}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {account.auth_type === 'bearer' ? (
+                          <code className="bg-muted px-2 py-1 rounded text-sm">
+                            {account.api_key_prefix}...
+                          </code>
+                        ) : (
+                          <code className="bg-muted px-2 py-1 rounded text-sm">
+                            {account.basic_username}
+                          </code>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge

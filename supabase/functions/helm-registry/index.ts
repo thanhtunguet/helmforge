@@ -476,6 +476,23 @@ async function hashApiKey(apiKey: string): Promise<string> {
     .join('');
 }
 
+// Parse Basic Auth header
+function parseBasicAuth(authHeader: string): { username: string; password: string } | null {
+  try {
+    if (!authHeader.startsWith('Basic ')) return null;
+    const base64 = authHeader.substring(6);
+    const decoded = atob(base64);
+    const colonIndex = decoded.indexOf(':');
+    if (colonIndex === -1) return null;
+    return {
+      username: decoded.substring(0, colonIndex),
+      password: decoded.substring(colonIndex + 1),
+    };
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -493,40 +510,56 @@ serve(async (req) => {
     console.log("Request path:", url.pathname);
     console.log("Path parts:", pathParts);
 
-    // Get API key from header
-    const apiKey = req.headers.get("X-API-Key") || req.headers.get("Authorization")?.replace("Bearer ", "");
-    
-    if (!apiKey) {
-      console.log("No API key provided");
-      return new Response(JSON.stringify({ error: "API key required" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     // Create Supabase client with service role for validation
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Validate API key using the database function
-    const { data: validationResult, error: validationError } = await supabase.rpc(
-      "validate_service_account_key",
-      { p_api_key: apiKey }
-    );
-
-    console.log("Validation result:", validationResult);
+    // Try to authenticate with different methods
+    const apiKey = req.headers.get("X-API-Key") || req.headers.get("Authorization")?.replace("Bearer ", "");
+    const authHeader = req.headers.get("Authorization");
     
-    if (validationError || !validationResult || validationResult.length === 0) {
-      console.log("Invalid API key:", validationError);
-      return new Response(JSON.stringify({ error: "Invalid API key" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    let serviceAccountId: string | null = null;
+
+    // Try Bearer/API Key auth first
+    if (apiKey && !authHeader?.startsWith('Basic ')) {
+      console.log("Trying Bearer/API key auth");
+      const { data: validationResult, error: validationError } = await supabase.rpc(
+        "validate_service_account_key",
+        { p_api_key: apiKey }
+      );
+
+      if (!validationError && validationResult && validationResult.length > 0) {
+        serviceAccountId = validationResult[0].service_account_id;
+        console.log("Bearer auth successful, service account ID:", serviceAccountId);
+      }
     }
 
-    const serviceAccountId = validationResult[0].service_account_id;
-    console.log("Service account ID:", serviceAccountId);
+    // Try Basic auth if Bearer failed or wasn't provided
+    if (!serviceAccountId && authHeader?.startsWith('Basic ')) {
+      console.log("Trying Basic auth");
+      const basicCreds = parseBasicAuth(authHeader);
+      
+      if (basicCreds) {
+        const { data: basicValidationResult, error: basicValidationError } = await supabase.rpc(
+          "validate_service_account_basic",
+          { p_username: basicCreds.username, p_password: basicCreds.password }
+        );
+
+        if (!basicValidationError && basicValidationResult && basicValidationResult.length > 0) {
+          serviceAccountId = basicValidationResult[0].service_account_id;
+          console.log("Basic auth successful, service account ID:", serviceAccountId);
+        }
+      }
+    }
+
+    if (!serviceAccountId) {
+      console.log("No valid authentication provided");
+      return new Response(JSON.stringify({ error: "Authentication required. Use X-API-Key header, Bearer token, or Basic auth" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "WWW-Authenticate": "Basic realm=\"Helm Registry\"" },
+      });
+    }
 
     // Update last used timestamp
     await supabase.rpc("update_service_account_last_used", {
