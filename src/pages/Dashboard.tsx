@@ -220,7 +220,7 @@ export default function Dashboard() {
                             </p>
                           </div>
                         </div>
-                        <Link to={`/templates/${version.templateId}/versions/${version.id}`}>
+                        <Link to={`/templates/${version.templateId}?tab=versions`}>
                           <Button variant="ghost" size="sm">
                             View
                           </Button>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useHelmStore } from '@/lib/store';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -41,7 +41,11 @@ import { TemplateWithRelations } from '@/types/helm';
 export default function TemplateDetail() {
   const { templateId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  
+  // Get the active tab from URL query parameter, default to 'services'
+  const activeTab = searchParams.get('tab') || 'services';
   
   // Use selectors that track actual data changes
   const templates = useHelmStore((state) => state.templates);
@@ -173,7 +177,15 @@ export default function TemplateDetail() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="services" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(value) => {
+          const newSearchParams = new URLSearchParams(searchParams);
+          if (value === 'services') {
+            newSearchParams.delete('tab');
+          } else {
+            newSearchParams.set('tab', value);
+          }
+          navigate(`/templates/${templateId}?${newSearchParams.toString()}`, { replace: true });
+        }} className="space-y-6">
           <TabsList className="bg-muted/50 p-1">
             <TabsTrigger value="services" className="gap-2">
               <Server className="h-4 w-4" />
