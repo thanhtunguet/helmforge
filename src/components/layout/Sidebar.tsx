@@ -85,14 +85,6 @@ export function Sidebar() {
                 </Link>
               );
             })}
-            <Link
-              to="/docs"
-              target="_blank"
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
-            >
-              <BookOpen className="h-4 w-4" />
-              Documentation
-            </Link>
           </div>
 
           {templates.length > 0 && (
@@ -163,12 +155,22 @@ export function Sidebar() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <FileCode2 className="h-4 w-4" />
-              <span>Helm v3 Compatible</span>
+          <div className="space-y-2">
+            <Link
+              to="/docs"
+              target="_blank"
+              className="flex items-center gap-2 rounded-lg py-2 text-xs transition-all text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
+            >
+              <BookOpen className="h-4 w-4" />
+              Documentation
+            </Link>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <FileCode2 className="h-4 w-4" />
+                <span>Helm v3 Compatible</span>
+              </div>
+              <ThemeSwitcher />
             </div>
-            <ThemeSwitcher />
           </div>
         </div>
       </div>
