@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Copy, FileCode } from 'lucide-react';
 import { toast } from 'sonner';
+import { MonacoEditor } from '@/components/ui/monaco-editor';
 
 interface NginxConfigTabProps {
   template: TemplateWithRelations;
@@ -161,10 +162,15 @@ ${locations.length > 0 ? locations.join('\n\n') : '        # No routes configure
             This configuration routes traffic to your services based on defined paths
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <pre className="overflow-auto rounded-lg bg-muted p-4 text-sm font-mono max-h-[600px]">
-            <code>{nginxConfig}</code>
-          </pre>
+        <CardContent className="p-0">
+          <div className="rounded-lg overflow-hidden border">
+            <MonacoEditor
+              value={nginxConfig}
+              language="nginx"
+              height="600px"
+              readOnly={true}
+            />
+          </div>
         </CardContent>
       </Card>
 
