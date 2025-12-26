@@ -71,6 +71,7 @@ interface ChartVersionValues {
   ingressHosts?: Record<string, string[]>;
   enableNginxGateway?: boolean;
   enableRedis?: boolean;
+  registryPassword?: string;
 }
 
 interface TemplateWithRelations {
@@ -164,6 +165,7 @@ interface HelmValues {
     registry: {
       url: string | null;
       project: string | null;
+      password: string | null;
     };
   };
   services: Record<string, {
@@ -194,6 +196,7 @@ function generateValuesYaml(template: TemplateWithRelations, version: ChartVersi
       registry: {
         url: template.registry_url,
         project: template.registry_project,
+        password: version.values.registryPassword || null,
       },
     },
     services: {},
@@ -321,7 +324,7 @@ metadata:
   name: {{ .Release.Name }}-registry-secret
 type: kubernetes.io/dockerconfigjson
 data:
-  .dockerconfigjson: {{ printf "{\\"auths\\": {\\"%s\\": {\\"username\\": \\"%s\\", \\"password\\": \\"%s\\", \\"email\\": \\"%s\\"}}}" .Values.global.registry.url "${username}" "REDACTED" "${email}" | b64enc }}
+  .dockerconfigjson: {{ printf "{\\"auths\\": {\\"%s\\": {\\"username\\": \\"%s\\", \\"password\\": \\"%s\\", \\"email\\": \\"%s\\"}}}" .Values.global.registry.url "${username}" .Values.global.registry.password "${email}" | b64enc }}
 `;
 }
 

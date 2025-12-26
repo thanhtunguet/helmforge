@@ -18,6 +18,7 @@ interface HelmValues {
     registry: {
       url: string | null;
       project: string | null;
+      password: string | null;
     };
   };
   services: Record<string, {
@@ -47,6 +48,7 @@ export function generateValuesYaml(template: TemplateWithRelations, version: Cha
       registry: {
         url: template.registryUrl,
         project: template.registryProject,
+        password: version.values.registryPassword || null,
       },
     },
     services: {},
@@ -221,7 +223,7 @@ metadata:
   name: {{ .Release.Name }}-registry-secret
 type: kubernetes.io/dockerconfigjson
 data:
-  .dockerconfigjson: {{ printf "{\\"auths\\": {\\"%s\\": {\\"username\\": \\"%s\\", \\"password\\": \\"%s\\", \\"email\\": \\"%s\\"}}}" .Values.global.registry.url "${template.registrySecret.username}" "REDACTED" "${template.registrySecret.email || ''}" | b64enc }}
+  .dockerconfigjson: {{ printf "{\\"auths\\": {\\"%s\\": {\\"username\\": \\"%s\\", \\"password\\": \\"%s\\", \\"email\\": \\"%s\\"}}}" .Values.global.registry.url "${template.registrySecret.username}" .Values.global.registry.password "${template.registrySecret.email || ''}" | b64enc }}
 `;
 }
 

@@ -113,6 +113,7 @@ export interface ChartVersionValues {
   ingressHosts: Record<string, string[]>;
   enableNginxGateway?: boolean;
   enableRedis?: boolean;
+  registryPassword?: string;
 }
 
 export interface ChartVersion {

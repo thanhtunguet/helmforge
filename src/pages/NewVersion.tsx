@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useHelmStore } from '@/lib/store';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -64,6 +64,43 @@ export default function NewVersion() {
     enableRedis: undefined,
   });
 
+  // Initialize values with default values from template
+  useEffect(() => {
+    if (!template) return;
+
+    const initialValues: ChartVersionValues = {
+      imageTags: {},
+      envValues: {},
+      configMapValues: {},
+      tlsSecretValues: {},
+      ingressHosts: {},
+      enableNginxGateway: undefined,
+      enableRedis: undefined,
+    };
+
+    // Initialize ConfigMap values with defaults
+    template.configMaps.forEach((cm) => {
+      initialValues.configMapValues[cm.name] = {};
+      cm.keys.forEach((key) => {
+        if (key.defaultValue) {
+          initialValues.configMapValues[cm.name][key.name] = key.defaultValue;
+        }
+      });
+    });
+
+    // Initialize environment variable values with defaults
+    template.services.forEach((svc) => {
+      initialValues.envValues[svc.name] = {};
+      svc.envVars.forEach((env) => {
+        if (env.defaultValue) {
+          initialValues.envValues[svc.name][env.name] = env.defaultValue;
+        }
+      });
+    });
+
+    setValues(initialValues);
+  }, [template?.id]); // Re-initialize when template changes
+
   if (!template) {
     return (
       <MainLayout>
@@ -97,6 +134,11 @@ export default function NewVersion() {
   const handleCreate = async () => {
     if (!versionInfo.versionName.trim()) {
       toast.error('Version name is required');
+      return;
+    }
+
+    if (!values.registryPassword || !values.registryPassword.trim()) {
+      toast.error('Registry password is required');
       return;
     }
 
@@ -167,6 +209,21 @@ export default function NewVersion() {
                     Version of your application
                   </p>
                 </div>
+              </div>
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label htmlFor="registryPassword">Registry Password *</Label>
+                <Input
+                  id="registryPassword"
+                  type="password"
+                  placeholder="Enter registry password"
+                  value={values.registryPassword || ''}
+                  onChange={(e) =>
+                    setValues({ ...values, registryPassword: e.target.value })
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Password for accessing the container registry ({template.registryUrl})
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -241,7 +298,7 @@ export default function NewVersion() {
                             </Label>
                             <Input
                               id={`env-${svc.name}-${env.name}`}
-                              placeholder="value"
+                              placeholder={env.defaultValue || 'value'}
                               value={values.envValues[svc.name]?.[env.name] || ''}
                               onChange={(e) =>
                                 setValues({
@@ -257,6 +314,11 @@ export default function NewVersion() {
                               }
                               className="font-mono text-sm"
                             />
+                            {env.defaultValue && !values.envValues[svc.name]?.[env.name] && (
+                              <p className="text-xs text-muted-foreground">
+                                Default: {env.defaultValue}
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -294,7 +356,7 @@ export default function NewVersion() {
                             </Label>
                             <Textarea
                               id={`cm-${cm.name}-${key.name}`}
-                              placeholder="value"
+                              placeholder={key.defaultValue || 'value'}
                               value={values.configMapValues[cm.name]?.[key.name] || ''}
                               onChange={(e) =>
                                 setValues({
@@ -311,6 +373,11 @@ export default function NewVersion() {
                               className="font-mono text-sm"
                               rows={3}
                             />
+                            {key.defaultValue && !values.configMapValues[cm.name]?.[key.name] && (
+                              <p className="text-xs text-muted-foreground">
+                                Default: {key.defaultValue}
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -523,6 +590,14 @@ export default function NewVersion() {
                     {(values.enableRedis ?? template.enableRedis)
                       ? 'Enabled'
                       : 'Disabled'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Registry Password:</span>
+                  <span>
+                    {values.registryPassword && values.registryPassword.trim()
+                      ? '✓ Provided'
+                      : '✗ Missing'}
                   </span>
                 </div>
               </div>
