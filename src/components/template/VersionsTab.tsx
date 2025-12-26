@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useHelmStore } from '@/lib/store';
 import { TemplateWithRelations } from '@/types/helm';
 import { downloadChart } from '@/lib/helm-generator';
@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Download, Trash2, Check, X } from 'lucide-react';
+import { Plus, Download, Trash2, Check, X, ArrowUpCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useState } from 'react';
@@ -35,6 +35,7 @@ interface VersionsTabProps {
 export function VersionsTab({ template }: VersionsTabProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const deleteChartVersion = useHelmStore((state) => state.deleteChartVersion);
+  const navigate = useNavigate();
 
   const handleDownload = async (versionId: string) => {
     const version = template.versions.find((v) => v.id === versionId);
@@ -55,6 +56,18 @@ export function VersionsTab({ template }: VersionsTabProps) {
       toast.success('Version deleted');
       setDeleteId(null);
     }
+  };
+
+  const handleUpgrade = (version: typeof template.versions[0]) => {
+    navigate(`/templates/${template.id}/versions/new`, {
+      state: {
+        initialValues: version.values,
+        initialVersionInfo: {
+          versionName: version.versionName,
+          appVersion: version.appVersion || '1.0.0',
+        },
+      },
+    });
   };
 
   const sortedVersions = [...template.versions].sort(
@@ -101,7 +114,7 @@ export function VersionsTab({ template }: VersionsTabProps) {
                 <TableHead>Nginx</TableHead>
                 <TableHead>Redis</TableHead>
                 <TableHead>Created</TableHead>
-                <TableHead className="w-[120px]">Actions</TableHead>
+                <TableHead className="w-[160px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -151,9 +164,19 @@ export function VersionsTab({ template }: VersionsTabProps) {
                   <TableCell>
                     <div className="flex gap-1">
                       <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleUpgrade(version)}
+                        title="Upgrade version"
+                      >
+                        <ArrowUpCircle className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleDownload(version.id)}
+                        title="Download chart"
                       >
                         <Download className="h-3.5 w-3.5" />
                       </Button>
@@ -162,6 +185,7 @@ export function VersionsTab({ template }: VersionsTabProps) {
                         size="icon"
                         className="h-8 w-8 text-destructive"
                         onClick={() => setDeleteId(version.id)}
+                        title="Delete version"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>

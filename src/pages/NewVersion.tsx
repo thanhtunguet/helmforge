@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useHelmStore } from '@/lib/store';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,7 @@ const STEPS = [
 export default function NewVersion() {
   const { templateId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [currentStep, setCurrentStep] = useState(0);
 
   const getTemplateWithRelations = useHelmStore(
@@ -49,9 +50,13 @@ export default function NewVersion() {
 
   const template = templateId ? getTemplateWithRelations(templateId) : undefined;
 
+  // Get initial values from location state if available (from upgrade button)
+  const initialValuesFromState = location.state?.initialValues as ChartVersionValues | undefined;
+  const initialVersionInfoFromState = location.state?.initialVersionInfo as { versionName: string; appVersion: string } | undefined;
+
   const [versionInfo, setVersionInfo] = useState({
-    versionName: '0.1.0',
-    appVersion: '1.0.0',
+    versionName: initialVersionInfoFromState?.versionName || '0.1.0',
+    appVersion: initialVersionInfoFromState?.appVersion || '1.0.0',
   });
 
   const [values, setValues] = useState<ChartVersionValues>({
@@ -64,10 +69,21 @@ export default function NewVersion() {
     enableRedis: undefined,
   });
 
-  // Initialize values with default values from template
+  // Initialize values with either upgrade values or default values from template
   useEffect(() => {
     if (!template) return;
 
+    // If we have initial values from upgrade, use them
+    if (initialValuesFromState) {
+      setValues({
+        ...initialValuesFromState,
+        // Don't copy registryPassword for security
+        registryPassword: undefined,
+      });
+      return;
+    }
+
+    // Otherwise, initialize with default values from template
     const initialValues: ChartVersionValues = {
       imageTags: {},
       envValues: {},
@@ -99,7 +115,7 @@ export default function NewVersion() {
     });
 
     setValues(initialValues);
-  }, [template?.id]); // Re-initialize when template changes
+  }, [template?.id, initialValuesFromState]); // Re-initialize when template changes or initial values are provided
 
   if (!template) {
     return (
