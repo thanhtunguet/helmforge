@@ -1,11 +1,11 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { Tar } from 'https://deno.land/std@0.168.0/archive/tar.ts';
-import pako from 'https://esm.sh/pako@2.1.0';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Tar } from "https://deno.land/std@0.168.0/archive/tar.ts";
+import pako from "https://esm.sh/pako@2.1.0";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 interface RegistrySecret {
@@ -57,7 +57,7 @@ interface Ingress {
   id: string;
   template_id: string;
   name: string;
-  mode: 'nginx-gateway' | 'direct-services';
+  mode: "nginx-gateway" | "direct-services";
   rules: IngressRule[];
   tls_enabled: boolean;
   tls_secret_name: string | null;
@@ -104,24 +104,24 @@ interface ChartVersion {
 // Generate Chart.yaml content
 function generateChartYaml(template: TemplateWithRelations, version: ChartVersion): string {
   return `apiVersion: v2
-name: ${template.name.toLowerCase().replace(/\s+/g, '-')}
-description: ${template.description || 'A Helm chart for Kubernetes'}
+name: ${template.name.toLowerCase().replace(/\s+/g, "-")}
+description: ${template.description || "A Helm chart for Kubernetes"}
 type: application
 version: ${version.version_name}
-appVersion: "${version.app_version || '1.0.0'}"
+appVersion: "${version.app_version || "1.0.0"}"
 `;
 }
 
 // Format object to YAML
 function formatYaml(obj: Record<string, unknown> | unknown[], indent = 0): string {
-  const spaces = '  '.repeat(indent);
-  let result = '';
+  const spaces = "  ".repeat(indent);
+  let result = "";
 
   // Handle arrays
   if (Array.isArray(obj)) {
     obj.forEach((item) => {
       if (item !== null && item !== undefined) {
-        if (typeof item === 'object' && !Array.isArray(item)) {
+        if (typeof item === "object" && !Array.isArray(item)) {
           result += `${spaces}  -\n${formatYaml(item as Record<string, unknown>, indent + 2)}`;
         } else if (Array.isArray(item)) {
           result += `${spaces}  -\n${formatYaml(item, indent + 2)}`;
@@ -137,13 +137,13 @@ function formatYaml(obj: Record<string, unknown> | unknown[], indent = 0): strin
   for (const [key, value] of Object.entries(obj)) {
     if (value === null || value === undefined) continue;
 
-    if (typeof value === 'object' && !Array.isArray(value)) {
+    if (typeof value === "object" && !Array.isArray(value)) {
       result += `${spaces}${key}:\n${formatYaml(value as Record<string, unknown>, indent + 1)}`;
     } else if (Array.isArray(value)) {
       result += `${spaces}${key}:\n`;
       value.forEach((item) => {
         if (item !== null && item !== undefined) {
-          if (typeof item === 'object' && !Array.isArray(item)) {
+          if (typeof item === "object" && !Array.isArray(item)) {
             result += `${spaces}  -\n${formatYaml(item as Record<string, unknown>, indent + 2)}`;
           } else if (Array.isArray(item)) {
             result += `${spaces}  -\n${formatYaml(item, indent + 2)}`;
@@ -153,7 +153,7 @@ function formatYaml(obj: Record<string, unknown> | unknown[], indent = 0): strin
         }
       });
     } else {
-      result += `${spaces}${key}: ${typeof value === 'string' && value.includes(':') ? `"${value}"` : value}\n`;
+      result += `${spaces}${key}: ${typeof value === "string" && value.includes(":") ? `"${value}"` : value}\n`;
     }
   }
 
@@ -169,19 +169,25 @@ interface HelmValues {
       password: string | null;
     };
   };
-  services: Record<string, {
-    imageTag: string;
-    env: Record<string, string>;
-    livenessPath: string | null;
-    readinessPath: string | null;
-  }>;
+  services: Record<
+    string,
+    {
+      imageTag: string;
+      env: Record<string, string>;
+      livenessPath: string | null;
+      readinessPath: string | null;
+    }
+  >;
   configMaps: Record<string, Record<string, string>>;
-  ingress: Record<string, {
-    hosts: string[];
-    rules: Array<{ path: string; serviceName: string }>;
-    tlsEnabled: boolean;
-    tlsSecretName: string | null;
-  }>;
+  ingress: Record<
+    string,
+    {
+      hosts: string[];
+      rules: Array<{ path: string; serviceName: string }>;
+      tlsEnabled: boolean;
+      tlsSecretName: string | null;
+    }
+  >;
   nginx: {
     enabled: boolean;
   };
@@ -214,7 +220,7 @@ function generateValuesYaml(template: TemplateWithRelations, version: ChartVersi
 
   template.services.forEach((svc) => {
     values.services[svc.name] = {
-      imageTag: version.values.imageTags?.[svc.name] || 'latest',
+      imageTag: version.values.imageTags?.[svc.name] || "latest",
       env: version.values.envValues?.[svc.name] || {},
       livenessPath: svc.liveness_path,
       readinessPath: svc.readiness_path,
@@ -320,8 +326,8 @@ data:
 
 // Generate Registry Secret YAML
 function generateRegistrySecretYaml(template: TemplateWithRelations): string {
-  const username = template.registry_secret?.username || '';
-  const email = template.registry_secret?.email || '';
+  const username = template.registry_secret?.username || "";
+  const email = template.registry_secret?.email || "";
   return `apiVersion: v1
 kind: Secret
 metadata:
@@ -350,7 +356,7 @@ stringData:
 // Generate Nginx ConfigMap
 function generateNginxConfigMap(template: TemplateWithRelations): string {
   const allRoutes = template.services.flatMap((svc) =>
-    (svc.routes || []).map((r: Route) => ({ path: r.path, serviceName: svc.name }))
+    (svc.routes || []).map((r: Route) => ({ path: r.path, serviceName: svc.name })),
   );
 
   const locationBlocks = allRoutes
@@ -361,9 +367,9 @@ function generateNginxConfigMap(template: TemplateWithRelations): string {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-    }`
+    }`,
     )
-    .join('\n\n');
+    .join("\n\n");
 
   return `apiVersion: v1
 kind: ConfigMap
@@ -501,7 +507,7 @@ spec:
         {{- range $ingressValues.hosts }}
         - {{ . }}
         {{- end }}
-      secretName: {{ $.Release.Name }}-${ingress.tls_secret_name || 'tls-secret'}
+      secretName: {{ $.Release.Name }}-${ingress.tls_secret_name || "tls-secret"}
   {{- end }}
   rules:
     {{- range $host := $ingressValues.hosts }}
@@ -542,24 +548,21 @@ spec:
 }
 
 // Generate full chart package as base64 string
-async function generateChartPackage(
-  template: TemplateWithRelations,
-  version: ChartVersion
-): Promise<string> {
-  const chartName = template.name.toLowerCase().replace(/\s+/g, '-');
-  
+async function generateChartPackage(template: TemplateWithRelations, version: ChartVersion): Promise<string> {
+  const chartName = template.name.toLowerCase().replace(/\s+/g, "-");
+
   // Create tar archive
   const tar = new Tar();
-  
+
   // Helper function to add file to tar
   const addFile = (path: string, content: string) => {
     // Normalize line endings to LF and ensure content ends with newline
-    const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const contentWithNewline = normalizedContent.endsWith('\n') ? normalizedContent : normalizedContent + '\n';
-    
+    const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const contentWithNewline = normalizedContent.endsWith("\n") ? normalizedContent : normalizedContent + "\n";
+
     const encoder = new TextEncoder();
     const contentBytes = encoder.encode(contentWithNewline);
-    
+
     // Create a fresh reader for each file
     const contentBytesCopy = new Uint8Array(contentBytes);
     let offset = 0;
@@ -632,7 +635,7 @@ async function generateChartPackage(
     },
   };
   await tar.write(writer);
-  
+
   // Combine chunks
   const totalLength = tarChunks.reduce((sum, chunk) => sum + chunk.length, 0);
   const tarBytes = new Uint8Array(totalLength);
@@ -644,7 +647,7 @@ async function generateChartPackage(
 
   // Gzip the tar archive using pako
   const gzipped = pako.gzip(tarBytes);
-  
+
   // Convert to base64
   const base64 = btoa(String.fromCharCode(...gzipped));
   return base64;
@@ -654,19 +657,19 @@ async function generateChartPackage(
 async function hashApiKey(apiKey: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(apiKey);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 // Parse Basic Auth header
 function parseBasicAuth(authHeader: string): { username: string; password: string } | null {
   try {
-    if (!authHeader.startsWith('Basic ')) return null;
+    if (!authHeader.startsWith("Basic ")) return null;
     const base64 = authHeader.substring(6);
     const decoded = atob(base64);
-    const colonIndex = decoded.indexOf(':');
+    const colonIndex = decoded.indexOf(":");
     if (colonIndex === -1) return null;
     return {
       username: decoded.substring(0, colonIndex),
@@ -679,91 +682,97 @@ function parseBasicAuth(authHeader: string): { username: string; password: strin
 
 serve(async (req) => {
   // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const url = new URL(req.url);
-    const pathParts = url.pathname.split('/').filter(Boolean);
-    
+    const pathParts = url.pathname.split("/").filter(Boolean);
+
     // Expected paths:
     // /helm-registry/{templateId}/index.yaml - Get index
     // /helm-registry/{templateId}/charts/{chartName}-{version}.tgz - Download chart
-    
-    console.log('Request path:', url.pathname);
-    console.log('Path parts:', pathParts);
+
+    console.log("Request path:", url.pathname);
+    console.log("Path parts:", pathParts);
 
     // Create Supabase client with service role for validation
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Try to authenticate with different methods
-    const apiKey = req.headers.get('X-API-Key') || req.headers.get('Authorization')?.replace('Bearer ', '');
-    const authHeader = req.headers.get('Authorization');
-    
+    const apiKey = req.headers.get("X-API-Key") || req.headers.get("Authorization")?.replace("Bearer ", "");
+    const authHeader = req.headers.get("Authorization");
+
     let serviceAccountId: string | null = null;
 
     // Try Bearer/API Key auth first
-    if (apiKey && !authHeader?.startsWith('Basic ')) {
-      console.log('Trying Bearer/API key auth');
-      const { data: validationResult, error: validationError } = await supabase.rpc(
-        'validate_service_account_key',
-        { p_api_key: apiKey }
-      );
+    if (apiKey && !authHeader?.startsWith("Basic ")) {
+      console.log("Trying Bearer/API key auth");
+      const { data: validationResult, error: validationError } = await supabase.rpc("validate_service_account_key", {
+        p_api_key: apiKey,
+      });
 
       if (!validationError && validationResult && validationResult.length > 0) {
         serviceAccountId = validationResult[0].service_account_id;
-        console.log('Bearer auth successful, service account ID:', serviceAccountId);
+        console.log("Bearer auth successful, service account ID:", serviceAccountId);
       }
     }
 
     // Try Basic auth if Bearer failed or wasn't provided
-    if (!serviceAccountId && authHeader?.startsWith('Basic ')) {
-      console.log('Trying Basic auth');
+    if (!serviceAccountId && authHeader?.startsWith("Basic ")) {
+      console.log("Trying Basic auth");
       const basicCreds = parseBasicAuth(authHeader);
-      
+
       if (basicCreds) {
         const { data: basicValidationResult, error: basicValidationError } = await supabase.rpc(
-          'validate_service_account_basic',
-          { p_username: basicCreds.username, p_password: basicCreds.password }
+          "validate_service_account_basic",
+          { p_username: basicCreds.username, p_password: basicCreds.password },
         );
 
         if (!basicValidationError && basicValidationResult && basicValidationResult.length > 0) {
           serviceAccountId = basicValidationResult[0].service_account_id;
-          console.log('Basic auth successful, service account ID:', serviceAccountId);
+          console.log("Basic auth successful, service account ID:", serviceAccountId);
         }
       }
     }
 
     if (!serviceAccountId) {
-      console.log('No valid authentication provided');
-      return new Response(JSON.stringify({ error: 'Authentication required. Use X-API-Key header, Bearer token, or Basic auth' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json', 'WWW-Authenticate': 'Basic realm="Helm Registry"' },
-      });
+      console.log("No valid authentication provided");
+      return new Response(
+        JSON.stringify({ error: "Authentication required. Use X-API-Key header, Bearer token, or Basic auth" }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "WWW-Authenticate": 'Basic realm="Helm Registry"',
+          },
+        },
+      );
     }
 
     // Update last used timestamp
-    await supabase.rpc('update_service_account_last_used', {
+    await supabase.rpc("update_service_account_last_used", {
       p_service_account_id: serviceAccountId,
     });
 
     // Extract template ID from path
     // Path format: /helm-registry/{templateId}/...
-    const templateIdIndex = pathParts.indexOf('helm-registry') + 1;
-    
+    const templateIdIndex = pathParts.indexOf("helm-registry") + 1;
+
     // Handle root index.yaml request (list all accessible templates)
-    if (templateIdIndex >= pathParts.length || pathParts[templateIdIndex] === 'index.yaml') {
-      console.log('Root index request - listing all accessible templates');
-      
+    if (templateIdIndex >= pathParts.length || pathParts[templateIdIndex] === "index.yaml") {
+      console.log("Root index request - listing all accessible templates");
+
       // Get all templates this service account has access to
       const { data: accessibleTemplates } = await supabase
-        .from('service_account_template_access')
-        .select('template_id')
-        .eq('service_account_id', serviceAccountId);
-      
+        .from("service_account_template_access")
+        .select("template_id")
+        .eq("service_account_id", serviceAccountId);
+
       if (!accessibleTemplates || accessibleTemplates.length === 0) {
         // Return empty but valid index.yaml
         const emptyIndexYaml = `apiVersion: v1
@@ -771,24 +780,18 @@ entries: {}
 generated: "${new Date().toISOString()}"
 `;
         return new Response(emptyIndexYaml, {
-          headers: { ...corsHeaders, 'Content-Type': 'application/x-yaml' },
+          headers: { ...corsHeaders, "Content-Type": "application/x-yaml" },
         });
       }
-      
+
       // Get all templates with their versions
-      const templateIds = accessibleTemplates.map(t => t.template_id);
-      const { data: templates } = await supabase
-        .from('templates')
-        .select('*')
-        .in('id', templateIds);
-      
-      const { data: allVersions } = await supabase
-        .from('chart_versions')
-        .select('*')
-        .in('template_id', templateIds);
-      
+      const templateIds = accessibleTemplates.map((t) => t.template_id);
+      const { data: templates } = await supabase.from("templates").select("*").in("id", templateIds);
+
+      const { data: allVersions } = await supabase.from("chart_versions").select("*").in("template_id", templateIds);
+
       const baseUrl = `${supabaseUrl}/functions/v1/helm-registry`;
-      
+
       // Build entries grouped by chart name
       interface ChartEntry {
         apiVersion: string;
@@ -801,36 +804,36 @@ generated: "${new Date().toISOString()}"
         urls: string[];
       }
       const entriesMap: Record<string, ChartEntry[]> = {};
-      
+
       const typedVersions = (allVersions || []).map((v) => ({
         ...v,
         values: v.values as ChartVersionValues,
       })) as ChartVersion[];
-      
+
       for (const template of templates || []) {
-        const chartName = template.name.toLowerCase().replace(/\s+/g, '-');
+        const chartName = template.name.toLowerCase().replace(/\s+/g, "-");
         const templateVersions = typedVersions.filter((v) => v.template_id === template.id);
-        
+
         if (!entriesMap[chartName]) {
           entriesMap[chartName] = [];
         }
-        
+
         for (const v of templateVersions) {
           entriesMap[chartName].push({
-            apiVersion: 'v2',
+            apiVersion: "v2",
             name: chartName,
             version: v.version_name,
-            appVersion: v.app_version || '1.0.0',
-            description: template.description || 'A Helm chart for Kubernetes',
-            type: 'application',
+            appVersion: v.app_version || "1.0.0",
+            description: template.description || "A Helm chart for Kubernetes",
+            type: "application",
             created: v.created_at,
             urls: [`${baseUrl}/${template.id}/charts/${chartName}-${v.version_name}.tgz`],
           });
         }
       }
-      
+
       // Generate index.yaml content
-      let entriesYaml = '';
+      let entriesYaml = "";
       for (const [chartName, entries] of Object.entries(entriesMap)) {
         if (entries.length > 0) {
           entriesYaml += `  ${chartName}:\n`;
@@ -847,60 +850,59 @@ generated: "${new Date().toISOString()}"
           }
         }
       }
-      
+
       const rootIndexYaml = `apiVersion: v1
 entries:
-${entriesYaml || '  {}'}
+${entriesYaml || "  {}"}
 generated: "${new Date().toISOString()}"
 `;
-      
+
       return new Response(rootIndexYaml, {
-        headers: { ...corsHeaders, 'Content-Type': 'application/x-yaml' },
+        headers: { ...corsHeaders, "Content-Type": "application/x-yaml" },
       });
     }
 
     const templateId = pathParts[templateIdIndex];
-    console.log('Template ID:', templateId);
+    console.log("Template ID:", templateId);
 
     // Check if service account has access to this template
-    const { data: hasAccess } = await supabase.rpc('check_template_access', {
+    const { data: hasAccess } = await supabase.rpc("check_template_access", {
       p_service_account_id: serviceAccountId,
       p_template_id: templateId,
     });
 
     if (!hasAccess) {
-      console.log('No access to template');
-      return new Response(JSON.stringify({ error: 'Access denied to this template' }), {
+      console.log("No access to template");
+      return new Response(JSON.stringify({ error: "Access denied to this template" }), {
         status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Get template with all relations
     const { data: template, error: templateError } = await supabase
-      .from('templates')
-      .select('*')
-      .eq('id', templateId)
+      .from("templates")
+      .select("*")
+      .eq("id", templateId)
       .single();
 
     if (templateError || !template) {
-      console.log('Template not found:', templateError);
-      return new Response(JSON.stringify({ error: 'Template not found' }), {
+      console.log("Template not found:", templateError);
+      return new Response(JSON.stringify({ error: "Template not found" }), {
         status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Get related data
-    const [servicesRes, configMapsRes, tlsSecretsRes, opaqueSecretsRes, ingressesRes, versionsRes] =
-      await Promise.all([
-        supabase.from('services').select('*').eq('template_id', templateId),
-        supabase.from('config_maps').select('*').eq('template_id', templateId),
-        supabase.from('tls_secrets').select('*').eq('template_id', templateId),
-        supabase.from('opaque_secrets').select('*').eq('template_id', templateId),
-        supabase.from('ingresses').select('*').eq('template_id', templateId),
-        supabase.from('chart_versions').select('*').eq('template_id', templateId),
-      ]);
+    const [servicesRes, configMapsRes, tlsSecretsRes, opaqueSecretsRes, ingressesRes, versionsRes] = await Promise.all([
+      supabase.from("services").select("*").eq("template_id", templateId),
+      supabase.from("config_maps").select("*").eq("template_id", templateId),
+      supabase.from("tls_secrets").select("*").eq("template_id", templateId),
+      supabase.from("opaque_secrets").select("*").eq("template_id", templateId),
+      supabase.from("ingresses").select("*").eq("template_id", templateId),
+      supabase.from("chart_versions").select("*").eq("template_id", templateId),
+    ]);
 
     const templateWithRelations: TemplateWithRelations = {
       ...template,
@@ -918,21 +920,21 @@ generated: "${new Date().toISOString()}"
     })) as ChartVersion[];
 
     // Determine the action based on path
-    const actionPath = pathParts.slice(templateIdIndex + 1).join('/');
-    console.log('Action path:', actionPath);
+    const actionPath = pathParts.slice(templateIdIndex + 1).join("/");
+    console.log("Action path:", actionPath);
 
-    if (actionPath === 'index.yaml' || actionPath === '') {
+    if (actionPath === "index.yaml" || actionPath === "") {
       // Return index.yaml for this specific template only
-      const chartName = template.name.toLowerCase().replace(/\s+/g, '-');
+      const chartName = template.name.toLowerCase().replace(/\s+/g, "-");
       const baseUrl = `${supabaseUrl}/functions/v1/helm-registry/${templateId}`;
 
       const entries = versions.map((v: ChartVersion) => ({
-        apiVersion: 'v2',
+        apiVersion: "v2",
         name: chartName,
         version: v.version_name,
-        appVersion: v.app_version || '1.0.0',
-        description: template.description || 'A Helm chart for Kubernetes',
-        type: 'application',
+        appVersion: v.app_version || "1.0.0",
+        description: template.description || "A Helm chart for Kubernetes",
+        type: "application",
         created: v.created_at,
         urls: [`${baseUrl}/charts/${chartName}-${v.version_name}.tgz`],
       }));
@@ -950,42 +952,42 @@ ${entries
       type: ${e.type}
       created: "${e.created}"
       urls:
-        - ${e.urls[0]}`
+        - ${e.urls[0]}`,
   )
-  .join('\n')}
+  .join("\n")}
 generated: "${new Date().toISOString()}"
 `;
 
       return new Response(indexYaml, {
         headers: {
           ...corsHeaders,
-          'Content-Type': 'application/x-yaml',
+          "Content-Type": "application/x-yaml",
         },
       });
     }
 
     // Check for chart download: charts/{chartName}-{version}.tgz
-    if (actionPath.startsWith('charts/') && actionPath.endsWith('.tgz')) {
-      const chartFile = actionPath.replace('charts/', '').replace('.tgz', '');
-      const chartName = template.name.toLowerCase().replace(/\s+/g, '-');
-      
+    if (actionPath.startsWith("charts/") && actionPath.endsWith(".tgz")) {
+      const chartFile = actionPath.replace("charts/", "").replace(".tgz", "");
+      const chartName = template.name.toLowerCase().replace(/\s+/g, "-");
+
       // Extract version from chartFile (format: chartName-version)
-      const versionStr = chartFile.replace(`${chartName}-`, '');
-      
-      console.log('Looking for version:', versionStr);
+      const versionStr = chartFile.replace(`${chartName}-`, "");
+
+      console.log("Looking for version:", versionStr);
 
       const version = versions.find((v: ChartVersion) => v.version_name === versionStr);
 
       if (!version) {
-        return new Response(JSON.stringify({ error: 'Version not found' }), {
+        return new Response(JSON.stringify({ error: "Version not found" }), {
           status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       // Generate the chart package
       const chartPackageBase64 = await generateChartPackage(templateWithRelations, version);
-      
+
       // Decode base64 to binary
       const binaryString = atob(chartPackageBase64);
       const bytes = new Uint8Array(binaryString.length);
@@ -996,25 +998,22 @@ generated: "${new Date().toISOString()}"
       return new Response(bytes, {
         headers: {
           ...corsHeaders,
-          'Content-Type': 'application/gzip',
-          'Content-Disposition': `attachment; filename="${chartName}-${versionStr}.tgz"`,
+          "Content-Type": "application/gzip",
+          "Content-Disposition": `attachment; filename="${chartName}-${versionStr}.tgz"`,
         },
       });
     }
 
-    return new Response(JSON.stringify({ error: 'Invalid endpoint' }), {
+    return new Response(JSON.stringify({ error: "Invalid endpoint" }), {
       status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
-    console.error('Error:', error);
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    return new Response(
-      JSON.stringify({ error: message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    console.error("Error:", error);
+    const message = error instanceof Error ? error.message : "Internal server error";
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
