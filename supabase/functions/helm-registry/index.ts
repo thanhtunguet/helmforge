@@ -569,10 +569,94 @@ serve(async (req) => {
     // Extract template ID from path
     // Path format: /helm-registry/{templateId}/...
     const templateIdIndex = pathParts.indexOf("helm-registry") + 1;
-    if (templateIdIndex >= pathParts.length) {
-      return new Response(JSON.stringify({ error: "Template ID required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    
+    // Handle root index.yaml request (list all accessible templates)
+    if (templateIdIndex >= pathParts.length || pathParts[templateIdIndex] === "index.yaml") {
+      console.log("Root index request - listing all accessible templates");
+      
+      // Get all templates this service account has access to
+      const { data: accessibleTemplates } = await supabase
+        .from("service_account_template_access")
+        .select("template_id")
+        .eq("service_account_id", serviceAccountId);
+      
+      if (!accessibleTemplates || accessibleTemplates.length === 0) {
+        // Return empty but valid index.yaml
+        const emptyIndexYaml = `apiVersion: v1
+entries: {}
+generated: "${new Date().toISOString()}"
+`;
+        return new Response(emptyIndexYaml, {
+          headers: { ...corsHeaders, "Content-Type": "application/x-yaml" },
+        });
+      }
+      
+      // Get all templates with their versions
+      const templateIds = accessibleTemplates.map(t => t.template_id);
+      const { data: templates } = await supabase
+        .from("templates")
+        .select("*")
+        .in("id", templateIds);
+      
+      const { data: allVersions } = await supabase
+        .from("chart_versions")
+        .select("*")
+        .in("template_id", templateIds);
+      
+      const baseUrl = `${supabaseUrl}/functions/v1/helm-registry`;
+      
+      // Build entries grouped by chart name
+      const entriesMap: Record<string, any[]> = {};
+      
+      for (const template of templates || []) {
+        const chartName = template.name.toLowerCase().replace(/\s+/g, "-");
+        const templateVersions = (allVersions || []).filter((v: ChartVersion) => v.template_id === template.id);
+        
+        if (!entriesMap[chartName]) {
+          entriesMap[chartName] = [];
+        }
+        
+        for (const v of templateVersions) {
+          entriesMap[chartName].push({
+            apiVersion: "v2",
+            name: chartName,
+            version: v.version_name,
+            appVersion: v.app_version || "1.0.0",
+            description: template.description || "A Helm chart for Kubernetes",
+            type: "application",
+            created: v.created_at,
+            urls: [`${baseUrl}/${template.id}/charts/${chartName}-${v.version_name}.tgz`],
+          });
+        }
+      }
+      
+      // Generate index.yaml content
+      let entriesYaml = "";
+      for (const [chartName, entries] of Object.entries(entriesMap)) {
+        if (entries.length > 0) {
+          entriesYaml += `  ${chartName}:\n`;
+          for (const e of entries) {
+            entriesYaml += `    - apiVersion: ${e.apiVersion}
+      name: ${e.name}
+      version: ${e.version}
+      appVersion: "${e.appVersion}"
+      description: ${e.description}
+      type: ${e.type}
+      created: "${e.created}"
+      urls:
+        - ${e.urls[0]}\n`;
+          }
+        }
+      }
+      
+      const rootIndexYaml = `apiVersion: v1
+entries:
+${entriesYaml || "  {}"}
+generated: "${new Date().toISOString()}"
+`;
+      
+      return new Response(rootIndexYaml, {
+        headers: { ...corsHeaders, "Content-Type": "application/x-yaml" },
       });
     }
 
