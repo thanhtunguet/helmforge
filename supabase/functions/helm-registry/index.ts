@@ -466,18 +466,14 @@ async function generateChartPackage(
   return content;
 }
 
-// Hash API key
-function hashApiKey(apiKey: string): string {
+// Hash API key using SHA-256
+async function hashApiKey(apiKey: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(apiKey);
-  const hashBuffer = new Uint8Array(32);
-  
-  // Simple hash for demonstration - in production use SubtleCrypto
-  for (let i = 0; i < data.length; i++) {
-    hashBuffer[i % 32] ^= data[i];
-  }
-  
-  return Array.from(hashBuffer).map(b => b.toString(16).padStart(2, '0')).join('');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 serve(async (req) => {

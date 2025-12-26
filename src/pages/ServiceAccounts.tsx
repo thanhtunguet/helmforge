@@ -154,17 +154,14 @@ export default function ServiceAccounts() {
     return result;
   }
 
-  function hashApiKey(apiKey: string): string {
-    // Simple hash for client-side - matches the edge function
+  async function hashApiKey(apiKey: string): Promise<string> {
+    // Use Web Crypto API for SHA-256 hashing
     const encoder = new TextEncoder();
     const data = encoder.encode(apiKey);
-    const hashArray = new Uint8Array(32);
-    
-    for (let i = 0; i < data.length; i++) {
-      hashArray[i % 32] ^= data[i];
-    }
-    
-    return Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
   }
 
   async function createServiceAccount() {
@@ -174,7 +171,7 @@ export default function ServiceAccounts() {
     }
 
     const apiKey = generateApiKey();
-    const apiKeyHash = hashApiKey(apiKey);
+    const apiKeyHash = await hashApiKey(apiKey);
     const apiKeyPrefix = apiKey.substring(0, 8);
 
     const { data, error } = await supabase.from("service_accounts").insert({
