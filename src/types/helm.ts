@@ -6,6 +6,7 @@ export interface EnvVarSchema {
   name: string;
   description?: string;
   required?: boolean;
+  defaultValue?: string;
 }
 
 export interface ConfigMapEnvSource {
@@ -33,6 +34,7 @@ export interface Service {
 export interface ConfigMapKey {
   name: string;
   description?: string;
+  defaultValue?: string;
 }
 
 export interface ConfigMap {

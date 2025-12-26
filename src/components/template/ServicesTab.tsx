@@ -138,15 +138,15 @@ export function ServicesTab({ template }: ServicesTabProps) {
   const addEnvVar = () => {
     setFormData(prev => ({
       ...prev,
-      envVars: [...prev.envVars, { name: '', required: false }]
+      envVars: [...prev.envVars, { name: '', required: false, defaultValue: '' }]
     }));
   };
 
-  const updateEnvVar = (index: number, name: string) => {
+  const updateEnvVar = (index: number, field: 'name' | 'defaultValue', value: string) => {
     setFormData(prev => ({
       ...prev,
       envVars: prev.envVars.map((e, i) => 
-        i === index ? { ...e, name } : e
+        i === index ? { ...e, [field]: value } : e
       )
     }));
   };
@@ -464,10 +464,16 @@ export function ServicesTab({ template }: ServicesTabProps) {
                   {formData.envVars.map((envVar, index) => (
                     <div key={index} className="flex items-center gap-2">
                       <Input
-                        placeholder="DATABASE_URL"
+                        placeholder="VARIABLE_NAME"
                         value={envVar.name}
-                        onChange={(e) => updateEnvVar(index, e.target.value)}
-                        className="font-mono"
+                        onChange={(e) => updateEnvVar(index, 'name', e.target.value)}
+                        className="font-mono flex-1"
+                      />
+                      <Input
+                        placeholder="Default value (optional)"
+                        value={envVar.defaultValue || ''}
+                        onChange={(e) => updateEnvVar(index, 'defaultValue', e.target.value)}
+                        className="font-mono flex-1"
                       />
                       <Button
                         type="button"
