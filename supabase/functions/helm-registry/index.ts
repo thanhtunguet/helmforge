@@ -501,7 +501,7 @@ spec:
         {{- range $ingressValues.hosts }}
         - {{ . }}
         {{- end }}
-      secretName: {{ .Release.Name }}-${ingress.tls_secret_name || 'tls-secret'}
+      secretName: {{ $.Release.Name }}-${ingress.tls_secret_name || 'tls-secret'}
   {{- end }}
   rules:
     {{- range $host := $ingressValues.hosts }}
@@ -513,7 +513,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ .Release.Name }}-nginx-gateway
+                name: {{ $.Release.Name }}-nginx-gateway
                 port:
                   number: {{ $.Values.global.sharedPort }}
           {{- else }}
@@ -532,7 +532,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ .Release.Name }}-nginx-gateway
+                name: {{ $.Release.Name }}-nginx-gateway
                 port:
                   number: {{ $.Values.global.sharedPort }}
           {{- end }}
