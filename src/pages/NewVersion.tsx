@@ -131,6 +131,27 @@ export default function NewVersion() {
       });
     });
 
+    // Initialize TLS secret values with defaults
+    template.tlsSecrets.forEach((secret) => {
+      if (secret.cert || secret.key) {
+        initialValues.tlsSecretValues[secret.name] = {
+          crt: secret.cert || '',
+          key: secret.key || '',
+        };
+      }
+    });
+
+    // Initialize ingress hosts with defaults
+    template.ingresses.forEach((ing) => {
+      if (ing.defaultHost) {
+        // Split by comma and trim, similar to how the form handles it
+        initialValues.ingressHosts[ing.name] = ing.defaultHost
+          .split(',')
+          .map((h) => h.trim())
+          .filter(Boolean);
+      }
+    });
+
     setValues(initialValues);
     hasInitialized.current = true;
   }, [template]); // Only depend on template, not initialValuesFromState
