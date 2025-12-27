@@ -49,19 +49,20 @@ serve(async (req) => {
       });
     }
 
-    // Create Supabase client with the user's JWT for verification
+    // Create Supabase admin client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
-    // Create client for user verification with their JWT
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false }
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
     });
 
-    // Verify the user's JWT token
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    // Extract token and verify with admin client
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
 
     if (authError || !user) {
       console.error('Auth verification failed:', authError?.message);
@@ -75,14 +76,6 @@ serve(async (req) => {
     }
 
     console.log('User authenticated:', user.id);
-
-    // Create admin client for privileged operations (separate from user verification)
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
 
     // Check if user is admin
     const { data: profile } = await supabaseAdmin
