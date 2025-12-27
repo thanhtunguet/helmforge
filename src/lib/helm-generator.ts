@@ -36,8 +36,10 @@ interface HelmValues {
         serviceName: string;
       }>;
     }>;
-    tlsEnabled: boolean;
-    tlsSecretName?: string | null;
+    tls: Array<{
+      secretName: string;
+      hosts: string[];
+    }>;
   }>;
   nginx: {
     enabled: boolean;
@@ -84,8 +86,7 @@ export function generateValuesYaml(template: TemplateWithRelations, version: Cha
   template.ingresses.forEach((ing) => {
     values.ingress[ing.name] = {
       hosts: ing.hosts,
-      tlsEnabled: ing.tlsEnabled,
-      tlsSecretName: ing.tlsSecretName,
+      tls: ing.tls,
     };
   });
 
@@ -407,13 +408,17 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: nginx
 spec:
-  {{- if .Values.ingress.${ingressName}.tlsEnabled }}
+  {{- if .Values.ingress.${ingressName}.tls }}
+  {{- if gt (len .Values.ingress.${ingressName}.tls) 0 }}
   tls:
-    - hosts:
-        {{- range $host := .Values.ingress.${ingressName}.hosts }}
-        - {{ $host.hostname }}
+    {{- range $tlsConfig := .Values.ingress.${ingressName}.tls }}
+    - secretName: {{ $tlsConfig.secretName }}
+      hosts:
+        {{- range $hostname := $tlsConfig.hosts }}
+        - {{ $hostname }}
         {{- end }}
-      secretName: ${ingress.tlsSecretName || 'tls-secret'}
+    {{- end }}
+  {{- end }}
   {{- end }}
   rules:
     {{- range $host := .Values.ingress.${ingressName}.hosts }}

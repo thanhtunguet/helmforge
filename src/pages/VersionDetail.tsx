@@ -349,26 +349,38 @@ export default function VersionDetail() {
                 <div className="space-y-4">
                   {template.ingresses.map((ing) => (
                     <div key={ing.id} className="space-y-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="secondary">{ing.name}</Badge>
-                        {ing.tlsEnabled && (
-                          <Badge variant="outline" className="text-xs">
-                            TLS
+                        {ing.tls && ing.tls.length > 0 && (
+                          <Badge variant="outline" className="text-xs flex items-center gap-1">
+                            <Lock className="h-3 w-3" />
+                            {ing.tls.length} TLS config{ing.tls.length > 1 ? 's' : ''}
                           </Badge>
                         )}
                       </div>
-                      {ing.hosts.map((host, idx) => (
-                        <div key={idx} className="p-3 rounded-lg bg-muted/50">
-                          <h5 className="font-mono text-sm font-semibold mb-2">{host.hostname}</h5>
-                          <div className="flex flex-wrap gap-1">
-                            {host.paths.map((path, pathIdx) => (
-                              <Badge key={pathIdx} variant="outline" className="text-xs font-mono">
-                                {path.path} → {path.serviceName}
-                              </Badge>
-                            ))}
+                      {ing.hosts.map((host, idx) => {
+                        const tlsConfig = ing.tls?.find(t => t.hosts.includes(host.hostname));
+                        return (
+                          <div key={idx} className="p-3 rounded-lg bg-muted/50">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h5 className="font-mono text-sm font-semibold">{host.hostname}</h5>
+                              {tlsConfig && (
+                                <Badge variant="outline" className="text-xs font-mono">
+                                  <Lock className="h-3 w-3 mr-1" />
+                                  {tlsConfig.secretName}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {host.paths.map((path, pathIdx) => (
+                                <Badge key={pathIdx} variant="outline" className="text-xs font-mono">
+                                  {path.path} → {path.serviceName}
+                                </Badge>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {ing.hosts.length === 0 && (
                         <p className="text-xs text-muted-foreground p-3 rounded-lg bg-muted/50">
                           No hosts configured

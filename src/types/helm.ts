@@ -91,14 +91,18 @@ export interface IngressHost {
   paths: IngressPath[];
 }
 
+export interface IngressTLS {
+  secretName: string;
+  hosts: string[]; // List of hostnames that use this TLS secret
+}
+
 export interface Ingress {
   id: string;
   templateId: string;
   name: string;
   mode: 'nginx-gateway' | 'direct-services';
   hosts: IngressHost[];
-  tlsEnabled: boolean;
-  tlsSecretName?: string;
+  tls: IngressTLS[];
 }
 
 export interface Template {

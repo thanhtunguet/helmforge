@@ -59,16 +59,12 @@ export function IngressesTab({ template }: IngressesTabProps) {
   const [formData, setFormData] = useState({
     name: '',
     mode: 'nginx-gateway' as 'nginx-gateway' | 'direct-services',
-    tlsEnabled: false,
-    tlsSecretName: '',
   });
 
   const openNew = () => {
     setFormData({
       name: '',
       mode: 'nginx-gateway',
-      tlsEnabled: false,
-      tlsSecretName: '',
     });
     setDialogOpen(true);
   };
@@ -88,7 +84,8 @@ export function IngressesTab({ template }: IngressesTabProps) {
         id: crypto.randomUUID(),
         templateId: template.id,
         ...formData,
-        hosts: [], // Start with empty hosts array, user will configure via edit page
+        hosts: [],
+        tls: [],
       };
       await addIngress(newIngress);
       toast.success('Ingress added. Click to edit and configure hosts.');
@@ -164,14 +161,12 @@ export function IngressesTab({ template }: IngressesTabProps) {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {ingress.tlsEnabled ? (
+                    {ingress.tls && ingress.tls.length > 0 ? (
                       <div className="flex items-center gap-1">
                         <Lock className="h-3.5 w-3.5 text-success" />
-                        {ingress.tlsSecretName && (
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {ingress.tlsSecretName}
-                          </span>
-                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {ingress.tls.length} config{ingress.tls.length > 1 ? 's' : ''}
+                        </span>
                       </div>
                     ) : (
                       <X className="h-4 w-4 text-muted-foreground" />
@@ -263,43 +258,6 @@ export function IngressesTab({ template }: IngressesTabProps) {
                   <SelectItem value="direct-services">Direct to Services</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="rounded-lg border border-border p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">TLS Configuration</p>
-                  <p className="text-xs text-muted-foreground">Enable HTTPS</p>
-                </div>
-                <Switch
-                  checked={formData.tlsEnabled}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, tlsEnabled: checked })
-                  }
-                />
-              </div>
-              {formData.tlsEnabled && (
-                <div className="space-y-2">
-                  <Label htmlFor="tlsSecretName">TLS Secret</Label>
-                  <Select
-                    value={formData.tlsSecretName}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, tlsSecretName: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select TLS secret" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {template.tlsSecrets.map((secret) => (
-                        <SelectItem key={secret.id} value={secret.name}>
-                          {secret.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
             </div>
           </div>
           <DialogFooter>

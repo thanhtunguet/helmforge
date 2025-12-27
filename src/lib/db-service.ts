@@ -187,27 +187,43 @@ function dbIngressToApp(dbIngress: DbIngressRow): Ingress {
     }
   }
 
+  // Migrate TLS configuration
+  let tls: import('@/types/helm').IngressTLS[] = [];
+  if (dbIngress.tls_enabled && dbIngress.tls_secret_name) {
+    // Old structure: single TLS secret for all hosts
+    const allHostnames = hosts.map(h => h.hostname);
+    if (allHostnames.length > 0) {
+      tls = [{
+        secretName: dbIngress.tls_secret_name,
+        hosts: allHostnames,
+      }];
+    }
+  }
+
   return {
     id: dbIngress.id,
     templateId: dbIngress.template_id,
     name: dbIngress.name,
     mode: (dbIngress.mode as 'nginx-gateway' | 'direct-services') || 'nginx-gateway',
     hosts: hosts,
-    tlsEnabled: dbIngress.tls_enabled,
-    tlsSecretName: dbIngress.tls_secret_name || undefined,
+    tls: tls,
   };
 }
 
 // Helper to convert app ingress to database format
 function appIngressToDb(ingress: Ingress | Partial<Ingress>): Omit<DbIngressInsert, 'id' | 'created_at'> {
+  // For backward compatibility, store the first TLS config in the old fields
+  const hasTLS = ingress.tls && ingress.tls.length > 0;
+  const firstTLS = hasTLS ? ingress.tls![0] : null;
+
   return {
     template_id: ingress.templateId!,
     name: ingress.name!,
     mode: (ingress.mode || 'nginx-gateway') as Database['public']['Tables']['ingresses']['Row']['mode'],
     rules: (ingress.hosts || []) as unknown as Database['public']['Tables']['ingresses']['Row']['rules'],
     default_host: null,
-    tls_enabled: ingress.tlsEnabled ?? false,
-    tls_secret_name: ingress.tlsSecretName || null,
+    tls_enabled: hasTLS,
+    tls_secret_name: firstTLS?.secretName || null,
   };
 }
 
