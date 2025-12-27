@@ -248,7 +248,7 @@ function generateDeploymentYaml(serviceName: string, service: Service): string {
   return `apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-${serviceName}
+  name: ${serviceName}
   labels:
     app: ${serviceName}
     chart: {{ .Chart.Name }}-{{ .Chart.Version }}
@@ -263,7 +263,7 @@ spec:
         app: ${serviceName}
     spec:
       imagePullSecrets:
-        - name: {{ .Release.Name }}-registry-secret
+        - name: registry-secret
       containers:
         - name: ${serviceName}
           image: "{{ .Values.global.registry.url }}/{{ .Values.global.registry.project }}/${serviceName}:{{ index .Values.services "${serviceName}" "imageTag" }}"
@@ -297,7 +297,7 @@ function generateServiceYaml(serviceName: string): string {
   return `apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-${serviceName}
+  name: ${serviceName}
   labels:
     app: ${serviceName}
 spec:
@@ -316,7 +316,7 @@ function generateConfigMapYaml(configMapName: string): string {
   return `apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-${configMapName}
+  name: ${configMapName}
 data:
   {{- range $key, $value := .Values.configMaps.${configMapName} }}
   {{ $key }}: {{ $value | quote }}
@@ -331,7 +331,7 @@ function generateRegistrySecretYaml(template: TemplateWithRelations): string {
   return `apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ .Release.Name }}-registry-secret
+  name: registry-secret
 type: kubernetes.io/dockerconfigjson
 data:
   .dockerconfigjson: {{ printf "{\\"auths\\": {\\"%s\\": {\\"username\\": \\"%s\\", \\"password\\": \\"%s\\", \\"email\\": \\"%s\\"}}}" .Values.global.registry.url "${username}" .Values.global.registry.password "${email}" | b64enc }}
@@ -343,7 +343,7 @@ function generateTLSSecretYaml(secretName: string): string {
   return `apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ .Release.Name }}-${secretName}
+  name: ${secretName}
 type: kubernetes.io/tls
 stringData:
   tls.crt: |
@@ -362,7 +362,7 @@ function generateNginxConfigMap(template: TemplateWithRelations): string {
   const locationBlocks = allRoutes
     .map(
       (route) => `    location ${route.path} {
-        proxy_pass http://{{ .Release.Name }}-${route.serviceName}:{{ .Values.global.sharedPort }};
+        proxy_pass http://${route.serviceName}:{{ .Values.global.sharedPort }};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -374,7 +374,7 @@ function generateNginxConfigMap(template: TemplateWithRelations): string {
   return `apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-nginx-gateway-config
+  name: nginx-gateway-config
 data:
   default.conf: |
     server {
@@ -392,7 +392,7 @@ function generateNginxDeploymentYaml(): string {
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-nginx-gateway
+  name: nginx-gateway
   labels:
     app: nginx-gateway
 spec:
@@ -416,7 +416,7 @@ spec:
       volumes:
         - name: nginx-config
           configMap:
-            name: {{ .Release.Name }}-nginx-gateway-config
+            name: nginx-gateway-config
 {{- end }}
 `;
 }
@@ -427,7 +427,7 @@ function generateNginxServiceYaml(): string {
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-nginx-gateway
+  name: nginx-gateway
   labels:
     app: nginx-gateway
 spec:
@@ -448,7 +448,7 @@ function generateRedisDeploymentYaml(): string {
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-redis
+  name: redis
   labels:
     app: redis
 spec:
@@ -476,7 +476,7 @@ function generateRedisServiceYaml(): string {
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-redis
+  name: redis
   labels:
     app: redis
 spec:
@@ -496,7 +496,7 @@ function generateIngressYaml(ingressName: string, ingress: Ingress): string {
   return `apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Release.Name }}-${ingressName}
+  name: ${ingressName}
   annotations:
     kubernetes.io/ingress.class: nginx
 spec:
@@ -507,7 +507,7 @@ spec:
         {{- range $ingressValues.hosts }}
         - {{ . }}
         {{- end }}
-      secretName: {{ $.Release.Name }}-${ingress.tls_secret_name || 'tls-secret'}
+      secretName: ${ingress.tls_secret_name || 'tls-secret'}
   {{- end }}
   rules:
     {{- range $host := $ingressValues.hosts }}
@@ -519,7 +519,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ $.Release.Name }}-nginx-gateway
+                name: nginx-gateway
                 port:
                   number: {{ $.Values.global.sharedPort }}
           {{- else }}
@@ -529,7 +529,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ $.Release.Name }}-{{ $rule.serviceName }}
+                name: {{ $rule.serviceName }}
                 port:
                   number: {{ $.Values.global.sharedPort }}
           {{- end }}
@@ -538,7 +538,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ $.Release.Name }}-nginx-gateway
+                name: nginx-gateway
                 port:
                   number: {{ $.Values.global.sharedPort }}
           {{- end }}
