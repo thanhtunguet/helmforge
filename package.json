@@ -69,6 +69,7 @@
     "embla-carousel-react": "^8.6.0",
     "file-saver": "^2.0.5",
     "input-otp": "^1.4.2",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.462.0",
     "monaco-editor": "^0.55.1",
     "monaco-editor-nginx": "^2.0.2",
