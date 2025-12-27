@@ -81,13 +81,22 @@ export interface IngressRule {
   serviceName: string;
 }
 
+export interface IngressPath {
+  path: string;
+  serviceName: string;
+}
+
+export interface IngressHost {
+  hostname: string;
+  paths: IngressPath[];
+}
+
 export interface Ingress {
   id: string;
   templateId: string;
   name: string;
   mode: 'nginx-gateway' | 'direct-services';
-  rules: IngressRule[];
-  defaultHost?: string;
+  hosts: IngressHost[];
   tlsEnabled: boolean;
   tlsSecretName?: string;
 }
@@ -111,7 +120,6 @@ export interface ChartVersionValues {
   envValues: Record<string, Record<string, string>>;
   configMapValues: Record<string, Record<string, string>>;
   tlsSecretValues: Record<string, { crt: string; key: string }>;
-  ingressHosts: Record<string, string[]>;
   enableNginxGateway?: boolean;
   enableRedis?: boolean;
   registryPassword?: string;

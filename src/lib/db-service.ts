@@ -167,13 +167,32 @@ function appOpaqueSecretToDb(secret: OpaqueSecret | Partial<OpaqueSecret>): Omit
 
 // Helper to convert database ingress to app ingress
 function dbIngressToApp(dbIngress: DbIngressRow): Ingress {
+  const rulesData = dbIngress.rules as unknown;
+  let hosts: import('@/types/helm').IngressHost[] = [];
+
+  // Migration: Check if this is the old structure (array of {path, serviceName})
+  if (Array.isArray(rulesData) && rulesData.length > 0) {
+    // Check if it's the old structure (has 'path' and 'serviceName' properties)
+    if (rulesData[0] && 'path' in rulesData[0] && 'serviceName' in rulesData[0] && !('hostname' in rulesData[0])) {
+      // Old structure: convert to new structure
+      // Create a single host from the defaultHost or use a placeholder
+      const hostname = dbIngress.default_host || 'example.com';
+      hosts = [{
+        hostname: hostname,
+        paths: rulesData as Array<{ path: string; serviceName: string }>,
+      }];
+    } else {
+      // New structure: use as-is
+      hosts = rulesData as import('@/types/helm').IngressHost[];
+    }
+  }
+
   return {
     id: dbIngress.id,
     templateId: dbIngress.template_id,
     name: dbIngress.name,
     mode: (dbIngress.mode as 'nginx-gateway' | 'direct-services') || 'nginx-gateway',
-    rules: (dbIngress.rules as unknown as IngressRule[]) || [],
-    defaultHost: dbIngress.default_host || undefined,
+    hosts: hosts,
     tlsEnabled: dbIngress.tls_enabled,
     tlsSecretName: dbIngress.tls_secret_name || undefined,
   };
@@ -185,8 +204,8 @@ function appIngressToDb(ingress: Ingress | Partial<Ingress>): Omit<DbIngressInse
     template_id: ingress.templateId!,
     name: ingress.name!,
     mode: (ingress.mode || 'nginx-gateway') as Database['public']['Tables']['ingresses']['Row']['mode'],
-    rules: (ingress.rules || []) as unknown as Database['public']['Tables']['ingresses']['Row']['rules'],
-    default_host: ingress.defaultHost || null,
+    rules: (ingress.hosts || []) as unknown as Database['public']['Tables']['ingresses']['Row']['rules'],
+    default_host: null,
     tls_enabled: ingress.tlsEnabled ?? false,
     tls_secret_name: ingress.tlsSecretName || null,
   };
@@ -204,7 +223,6 @@ function dbChartVersionToApp(dbVersion: DbChartVersionRow): ChartVersion {
       envValues: {},
       configMapValues: {},
       tlsSecretValues: {},
-      ingressHosts: {},
     },
     createdAt: dbVersion.created_at,
   };
@@ -221,7 +239,6 @@ function appChartVersionToDb(version: ChartVersion | Partial<ChartVersion>): Omi
       envValues: {},
       configMapValues: {},
       tlsSecretValues: {},
-      ingressHosts: {},
     }) as unknown as Database['public']['Tables']['chart_versions']['Row']['values'],
   };
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useHelmStore } from '@/lib/store';
-import { TemplateWithRelations, Ingress, IngressRule } from '@/types/helm';
+import { TemplateWithRelations, Ingress, IngressHost } from '@/types/helm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,46 +52,23 @@ export function IngressesTab({ template }: IngressesTabProps) {
   const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [editingIngress, setEditingIngress] = useState<Ingress | null>(null);
   
   const addIngress = useHelmStore((state) => state.addIngress);
-  const updateIngress = useHelmStore((state) => state.updateIngress);
   const deleteIngress = useHelmStore((state) => state.deleteIngress);
 
   const [formData, setFormData] = useState({
     name: '',
     mode: 'nginx-gateway' as 'nginx-gateway' | 'direct-services',
-    defaultHost: '',
     tlsEnabled: false,
     tlsSecretName: '',
-    rules: [] as IngressRule[],
-    useAllRoutes: false,
   });
-
-  const [ruleForm, setRuleForm] = useState({ 
-    serviceName: '', 
-    selectedRoute: '', 
-    customPath: '' 
-  });
-
-  // Compute all routes from all services
-  const allRoutes: IngressRule[] = template.services.flatMap(service =>
-    service.routes.map(route => ({
-      path: route.path,
-      serviceName: service.name,
-    }))
-  );
 
   const openNew = () => {
-    setEditingIngress(null);
     setFormData({
       name: '',
       mode: 'nginx-gateway',
-      defaultHost: '',
       tlsEnabled: false,
       tlsSecretName: '',
-      rules: [],
-      useAllRoutes: false,
     });
     setDialogOpen(true);
   };
@@ -100,80 +77,25 @@ export function IngressesTab({ template }: IngressesTabProps) {
     navigate(`/templates/${template.id}/ingresses/${ingress.id}/edit`);
   };
 
-  const handleUseAllRoutesChange = (checked: boolean) => {
-    if (checked) {
-      setFormData({
-        ...formData,
-        useAllRoutes: true,
-        rules: [...allRoutes],
-      });
-    } else {
-      setFormData({
-        ...formData,
-        useAllRoutes: false,
-        rules: [],
-      });
-    }
-  };
-
-  const selectedService = template.services.find(s => s.name === ruleForm.serviceName);
-  const isCustomRoute = ruleForm.selectedRoute === '__custom__';
-
-  const addRule = () => {
-    if (!ruleForm.serviceName) {
-      toast.error('Service is required');
-      return;
-    }
-    
-    const path = isCustomRoute ? ruleForm.customPath : ruleForm.selectedRoute;
-    if (!path) {
-      toast.error('Route path is required');
-      return;
-    }
-
-    setFormData({
-      ...formData,
-      rules: [
-        ...formData.rules,
-        {
-          path: path.startsWith('/') ? path : `/${path}`,
-          serviceName: ruleForm.serviceName,
-        },
-      ],
-    });
-    setRuleForm({ serviceName: '', selectedRoute: '', customPath: '' });
-  };
-
-  const removeRule = (index: number) => {
-    setFormData({
-      ...formData,
-      rules: formData.rules.filter((_, i) => i !== index),
-    });
-  };
-
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
       toast.error('Ingress name is required');
       return;
     }
 
-    const { useAllRoutes, ...ingressData } = formData;
-
     try {
-      if (editingIngress) {
-        await updateIngress(editingIngress.id, ingressData);
-        toast.success('Ingress updated');
-      } else {
-        const ingress: Ingress = {
-          id: crypto.randomUUID(),
-          templateId: template.id,
-          ...ingressData,
-        };
-        await addIngress(ingress);
-        toast.success('Ingress added');
-      }
-
+      const newIngress: Ingress = {
+        id: crypto.randomUUID(),
+        templateId: template.id,
+        ...formData,
+        hosts: [], // Start with empty hosts array, user will configure via edit page
+      };
+      await addIngress(newIngress);
+      toast.success('Ingress added. Click to edit and configure hosts.');
       setDialogOpen(false);
+
+      // Optionally navigate to edit page immediately
+      navigate(`/templates/${template.id}/ingresses/${newIngress.id}/edit`);
     } catch (error) {
       // Error is already handled in the store
     }
@@ -224,7 +146,7 @@ export function IngressesTab({ template }: IngressesTabProps) {
                 <TableHead>Name</TableHead>
                 <TableHead>Mode</TableHead>
                 <TableHead>TLS</TableHead>
-                <TableHead>Rules</TableHead>
+                <TableHead>Hosts</TableHead>
                 <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -257,18 +179,18 @@ export function IngressesTab({ template }: IngressesTabProps) {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {ingress.rules.length > 0 ? (
-                        ingress.rules.slice(0, 2).map((rule, i) => (
+                      {ingress.hosts && ingress.hosts.length > 0 ? (
+                        ingress.hosts.slice(0, 2).map((host, i) => (
                           <Badge key={i} variant="secondary" className="font-mono text-xs">
-                            {rule.path}
+                            {host.hostname}
                           </Badge>
                         ))
                       ) : (
-                        <span className="text-xs text-muted-foreground">No rules</span>
+                        <span className="text-xs text-muted-foreground">No hosts</span>
                       )}
-                      {ingress.rules.length > 2 && (
+                      {ingress.hosts && ingress.hosts.length > 2 && (
                         <Badge variant="outline" className="text-xs">
-                          +{ingress.rules.length - 2}
+                          +{ingress.hosts.length - 2}
                         </Badge>
                       )}
                     </div>
@@ -306,60 +228,41 @@ export function IngressesTab({ template }: IngressesTabProps) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
-              {editingIngress ? 'Edit Ingress' : 'Add Ingress'}
-            </DialogTitle>
+            <DialogTitle>Add Ingress</DialogTitle>
             <DialogDescription>
-              Configure ingress rules for external traffic
+              Create a new ingress. You'll configure hosts and routes in the next step.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="name">Ingress Name *</Label>
-                <Input
-                  id="name"
-                  placeholder="main-ingress"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="font-mono"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mode">Routing Mode</Label>
-                <Select
-                  value={formData.mode}
-                  onValueChange={(value: 'nginx-gateway' | 'direct-services') =>
-                    setFormData({ ...formData, mode: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nginx-gateway">Via Nginx Gateway</SelectItem>
-                    <SelectItem value="direct-services">Direct to Services</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
+          <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="defaultHost">Default Host (optional)</Label>
+              <Label htmlFor="name">Ingress Name *</Label>
               <Input
-                id="defaultHost"
-                placeholder="app.example.com"
-                value={formData.defaultHost}
+                id="name"
+                placeholder="main-ingress"
+                value={formData.name}
                 onChange={(e) =>
-                  setFormData({ ...formData, defaultHost: e.target.value })
+                  setFormData({ ...formData, name: e.target.value })
                 }
                 className="font-mono"
               />
-              <p className="text-xs text-muted-foreground">
-                Actual hosts are assigned when creating chart versions
-              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mode">Routing Mode</Label>
+              <Select
+                value={formData.mode}
+                onValueChange={(value: 'nginx-gateway' | 'direct-services') =>
+                  setFormData({ ...formData, mode: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nginx-gateway">Via Nginx Gateway</SelectItem>
+                  <SelectItem value="direct-services">Direct to Services</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="rounded-lg border border-border p-4 space-y-4">
@@ -398,122 +301,13 @@ export function IngressesTab({ template }: IngressesTabProps) {
                 </div>
               )}
             </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Routing Rules</Label>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="useAllRoutes" className="text-sm font-normal text-muted-foreground">
-                    Use all routes
-                  </Label>
-                  <Switch
-                    id="useAllRoutes"
-                    checked={formData.useAllRoutes}
-                    onCheckedChange={handleUseAllRoutesChange}
-                    disabled={allRoutes.length === 0}
-                  />
-                </div>
-              </div>
-              
-              {formData.useAllRoutes ? (
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <p className="text-sm text-muted-foreground mb-2">
-                    All {allRoutes.length} route(s) from all services will be included:
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {allRoutes.map((rule, i) => (
-                      <Badge key={i} variant="secondary" className="font-mono text-xs">
-                        {rule.path} → {rule.serviceName}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <Select
-                        value={ruleForm.serviceName}
-                        onValueChange={(value) =>
-                          setRuleForm({ ...ruleForm, serviceName: value, selectedRoute: '', customPath: '' })
-                        }
-                      >
-                        <SelectTrigger className="w-48">
-                          <SelectValue placeholder="Select Service" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {template.services.map((svc) => (
-                            <SelectItem key={svc.id} value={svc.name}>
-                              {svc.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={ruleForm.selectedRoute}
-                        onValueChange={(value) =>
-                          setRuleForm({ ...ruleForm, selectedRoute: value, customPath: '' })
-                        }
-                        disabled={!ruleForm.serviceName}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Select Route" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {selectedService?.routes.map((route, idx) => (
-                            <SelectItem key={idx} value={route.path}>
-                              {route.path}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value="__custom__">Custom Route...</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button type="button" variant="secondary" onClick={addRule} disabled={!ruleForm.serviceName}>
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {isCustomRoute && (
-                      <Input
-                        placeholder="/custom-path"
-                        value={ruleForm.customPath}
-                        onChange={(e) => setRuleForm({ ...ruleForm, customPath: e.target.value })}
-                        className="font-mono"
-                      />
-                    )}
-                  </div>
-                  {formData.rules.length > 0 && (
-                    <div className="space-y-2">
-                      {formData.rules.map((rule, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2"
-                        >
-                          <span className="font-mono text-sm">
-                            {rule.path} → {rule.serviceName}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => removeRule(i)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleSubmit}>
-              {editingIngress ? 'Update' : 'Add'} Ingress
+              Create & Configure Hosts
             </Button>
           </DialogFooter>
         </DialogContent>

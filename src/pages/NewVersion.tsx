@@ -64,7 +64,6 @@ export default function NewVersion() {
     envValues: {},
     configMapValues: {},
     tlsSecretValues: {},
-    ingressHosts: {},
     enableNginxGateway: undefined,
     enableRedis: undefined,
   });
@@ -106,7 +105,6 @@ export default function NewVersion() {
       envValues: {},
       configMapValues: {},
       tlsSecretValues: {},
-      ingressHosts: {},
       enableNginxGateway: undefined,
       enableRedis: undefined,
     };
@@ -141,16 +139,7 @@ export default function NewVersion() {
       }
     });
 
-    // Initialize ingress hosts with defaults
-    template.ingresses.forEach((ing) => {
-      if (ing.defaultHost) {
-        // Split by comma and trim, similar to how the form handles it
-        initialValues.ingressHosts[ing.name] = ing.defaultHost
-          .split(',')
-          .map((h) => h.trim())
-          .filter(Boolean);
-      }
-    });
+
 
     setValues(initialValues);
     hasInitialized.current = true;
@@ -542,25 +531,24 @@ export default function NewVersion() {
                         </Badge>
                       )}
                     </h4>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Hosts (comma-separated)</Label>
-                      <Input
-                        placeholder="app.example.com, www.example.com"
-                        value={values.ingressHosts[ing.name]?.join(', ') || ''}
-                        onChange={(e) =>
-                          setValues({
-                            ...values,
-                            ingressHosts: {
-                              ...values.ingressHosts,
-                              [ing.name]: e.target.value
-                                .split(',')
-                                .map((h) => h.trim())
-                                .filter(Boolean),
-                            },
-                          })
-                        }
-                        className="font-mono"
-                      />
+                    <div className="space-y-2">
+                      {ing.hosts.map((host, idx) => (
+                        <div key={idx} className="rounded-lg bg-muted/50 p-3">
+                          <p className="font-mono text-sm font-semibold mb-1">{host.hostname}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {host.paths.map((path, pathIdx) => (
+                              <Badge key={pathIdx} variant="outline" className="text-xs font-mono">
+                                {path.path} → {path.serviceName}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {ing.hosts.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          No hosts configured. Configure hosts in the ingress settings.
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))

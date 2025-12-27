@@ -333,39 +333,49 @@ export default function VersionDetail() {
           </Card>
         )}
 
-        {/* Ingress Hosts */}
-        {Object.keys(version.values.ingressHosts).length > 0 &&
-          Object.values(version.values.ingressHosts).some((hosts) => hosts.length > 0) && (
+        {/* Ingress Configuration */}
+        {template && template.ingresses.length > 0 && (
             <Card className="mb-6 bg-card border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Network className="h-5 w-5" />
-                  Ingress Hosts
+                  Ingress Configuration
                 </CardTitle>
                 <CardDescription>
-                  Host names for each ingress
+                  Host names and routes for each ingress
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {Object.entries(version.values.ingressHosts).map(([ingressName, hosts]) => {
-                    if (hosts.length === 0) return null;
-                    return (
-                      <div
-                        key={ingressName}
-                        className="p-3 rounded-lg bg-muted/50"
-                      >
-                        <h4 className="text-sm font-medium mb-2">{ingressName}</h4>
-                        <div className="flex flex-wrap gap-1">
-                          {hosts.map((host) => (
-                            <Badge key={host} variant="secondary" className="font-mono text-xs">
-                              {host}
-                            </Badge>
-                          ))}
-                        </div>
+                <div className="space-y-4">
+                  {template.ingresses.map((ing) => (
+                    <div key={ing.id} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{ing.name}</Badge>
+                        {ing.tlsEnabled && (
+                          <Badge variant="outline" className="text-xs">
+                            TLS
+                          </Badge>
+                        )}
                       </div>
-                    );
-                  })}
+                      {ing.hosts.map((host, idx) => (
+                        <div key={idx} className="p-3 rounded-lg bg-muted/50">
+                          <h5 className="font-mono text-sm font-semibold mb-2">{host.hostname}</h5>
+                          <div className="flex flex-wrap gap-1">
+                            {host.paths.map((path, pathIdx) => (
+                              <Badge key={pathIdx} variant="outline" className="text-xs font-mono">
+                                {path.path} → {path.serviceName}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {ing.hosts.length === 0 && (
+                        <p className="text-xs text-muted-foreground p-3 rounded-lg bg-muted/50">
+                          No hosts configured
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>

@@ -29,7 +29,13 @@ interface HelmValues {
   }>;
   configMaps: Record<string, Record<string, string>>;
   ingress: Record<string, {
-    hosts: string[];
+    hosts: Array<{
+      hostname: string;
+      paths: Array<{
+        path: string;
+        serviceName: string;
+      }>;
+    }>;
     tlsEnabled: boolean;
     tlsSecretName?: string | null;
   }>;
@@ -77,7 +83,7 @@ export function generateValuesYaml(template: TemplateWithRelations, version: Cha
 
   template.ingresses.forEach((ing) => {
     values.ingress[ing.name] = {
-      hosts: version.values.ingressHosts[ing.name] || [],
+      hosts: ing.hosts,
       tlsEnabled: ing.tlsEnabled,
       tlsSecretName: ing.tlsSecretName,
     };
@@ -392,7 +398,7 @@ export function generateIngressYaml(ingressName: string, template: TemplateWithR
   const backendService =
     ingress.mode === 'nginx-gateway'
       ? 'nginx-gateway'
-      : '{{ $rule.serviceName }}';
+      : '{{ $path.serviceName }}';
 
   return `apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -404,18 +410,18 @@ spec:
   {{- if .Values.ingress.${ingressName}.tlsEnabled }}
   tls:
     - hosts:
-        {{- range .Values.ingress.${ingressName}.hosts }}
-        - {{ . }}
+        {{- range $host := .Values.ingress.${ingressName}.hosts }}
+        - {{ $host.hostname }}
         {{- end }}
       secretName: ${ingress.tlsSecretName || 'tls-secret'}
   {{- end }}
   rules:
-    {{- range .Values.ingress.${ingressName}.hosts }}
-    - host: {{ . }}
+    {{- range $host := .Values.ingress.${ingressName}.hosts }}
+    - host: {{ $host.hostname }}
       http:
         paths:
-          {{- range $rule := $.Values.ingress.${ingressName}.rules }}
-          - path: {{ $rule.path }}
+          {{- range $path := $host.paths }}
+          - path: {{ $path.path }}
             pathType: Prefix
             backend:
               service:

@@ -15,9 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Plus, Trash2, Lock, Network } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Network, Globe } from 'lucide-react';
 import { toast } from 'sonner';
-import { Ingress, IngressRule } from '@/types/helm';
+import { IngressHost } from '@/types/helm';
 
 export default function EditIngress() {
   const { templateId, ingressId } = useParams();
@@ -27,57 +27,38 @@ export default function EditIngress() {
   const services = useHelmStore((state) => state.services);
   const tlsSecrets = useHelmStore((state) => state.tlsSecrets);
   const updateIngress = useHelmStore((state) => state.updateIngress);
-  
+
   const ingress = ingresses.find((i) => i.id === ingressId && i.templateId === templateId);
   const template = templates.find((t) => t.id === templateId);
-  
+
   // Get services for this template
   const templateServices = services.filter((s) => s.templateId === templateId);
-  
-  // Compute all routes from all services
-  const allRoutes: IngressRule[] = templateServices.flatMap(service =>
-    service.routes.map(route => ({
-      path: route.path,
-      serviceName: service.name,
-    }))
-  );
-  
+
   const [formData, setFormData] = useState({
     name: '',
     mode: 'nginx-gateway' as 'nginx-gateway' | 'direct-services',
-    defaultHost: '',
     tlsEnabled: false,
     tlsSecretName: '',
-    rules: [] as IngressRule[],
-    useAllRoutes: false,
+    hosts: [] as IngressHost[],
   });
 
-  const [ruleForm, setRuleForm] = useState({ 
-    serviceName: '', 
-    selectedRoute: '', 
-    customPath: '' 
-  });
+  const [hostForm, setHostForm] = useState({ hostname: '' });
+  const [pathForms, setPathForms] = useState<Record<number, { serviceName: string; selectedRoute: string; customPath: string }>>({});
 
   useEffect(() => {
     if (ingress && template) {
-      // Check if current rules match all routes to set useAllRoutes toggle
-      const allRoutesSet = new Set(allRoutes.map(r => `${r.path}:${r.serviceName}`));
-      const currentRulesSet = new Set(ingress.rules.map(r => `${r.path}:${r.serviceName}`));
-      const isUsingAllRoutes = allRoutes.length > 0 && 
-        allRoutes.every(r => currentRulesSet.has(`${r.path}:${r.serviceName}`)) &&
-        ingress.rules.length === allRoutes.length;
+      // Ensure hosts array exists (migration from old structure)
+      const hosts = Array.isArray(ingress.hosts) ? ingress.hosts : [];
 
       setFormData({
         name: ingress.name,
         mode: ingress.mode,
-        defaultHost: ingress.defaultHost || '',
         tlsEnabled: ingress.tlsEnabled,
         tlsSecretName: ingress.tlsSecretName || '',
-        rules: [...ingress.rules],
-        useAllRoutes: isUsingAllRoutes,
+        hosts: hosts,
       });
     }
-  }, [ingress, template, allRoutes]);
+  }, [ingress, template]);
 
   if (!ingress || !template) {
     return (
@@ -96,54 +77,99 @@ export default function EditIngress() {
     );
   }
 
-  const handleUseAllRoutesChange = (checked: boolean) => {
-    if (checked) {
-      setFormData({
-        ...formData,
-        useAllRoutes: true,
-        rules: [...allRoutes],
-      });
-    } else {
-      setFormData({
-        ...formData,
-        useAllRoutes: false,
-        rules: [],
-      });
+  const addHost = () => {
+    if (!hostForm.hostname.trim()) {
+      toast.error('Hostname is required');
+      return;
     }
+
+    if (formData.hosts.some(h => h.hostname === hostForm.hostname)) {
+      toast.error('This hostname already exists');
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      hosts: [
+        ...formData.hosts,
+        {
+          hostname: hostForm.hostname.trim(),
+          paths: [],
+        },
+      ],
+    });
+    setHostForm({ hostname: '' });
   };
 
-  const selectedService = templateServices.find(s => s.name === ruleForm.serviceName);
-  const isCustomRoute = ruleForm.selectedRoute === '__custom__';
+  const removeHost = (index: number) => {
+    const newPathForms = { ...pathForms };
+    delete newPathForms[index];
 
-  const addRule = () => {
-    if (!ruleForm.serviceName) {
+    setFormData({
+      ...formData,
+      hosts: formData.hosts.filter((_, i) => i !== index),
+    });
+    setPathForms(newPathForms);
+  };
+
+  const addPath = (hostIndex: number) => {
+    const pathForm = pathForms[hostIndex] || { serviceName: '', selectedRoute: '', customPath: '' };
+
+    if (!pathForm.serviceName) {
       toast.error('Service is required');
       return;
     }
-    
-    const path = isCustomRoute ? ruleForm.customPath : ruleForm.selectedRoute;
+
+    const isCustomRoute = pathForm.selectedRoute === '__custom__';
+    const path = isCustomRoute ? pathForm.customPath : pathForm.selectedRoute;
+
     if (!path) {
       toast.error('Route path is required');
       return;
     }
 
-    setFormData({
-      ...formData,
-      rules: [
-        ...formData.rules,
+    const formattedPath = path.startsWith('/') ? path : `/${path}`;
+
+    // Check for duplicate paths in this host
+    if (formData.hosts[hostIndex].paths.some(p => p.path === formattedPath)) {
+      toast.error('This path already exists for this host');
+      return;
+    }
+
+    const updatedHosts = [...formData.hosts];
+    updatedHosts[hostIndex] = {
+      ...updatedHosts[hostIndex],
+      paths: [
+        ...updatedHosts[hostIndex].paths,
         {
-          path: path.startsWith('/') ? path : `/${path}`,
-          serviceName: ruleForm.serviceName,
+          path: formattedPath,
+          serviceName: pathForm.serviceName,
         },
       ],
-    });
-    setRuleForm({ serviceName: '', selectedRoute: '', customPath: '' });
-  };
+    };
 
-  const removeRule = (index: number) => {
     setFormData({
       ...formData,
-      rules: formData.rules.filter((_, i) => i !== index),
+      hosts: updatedHosts,
+    });
+
+    // Reset path form for this host
+    setPathForms({
+      ...pathForms,
+      [hostIndex]: { serviceName: '', selectedRoute: '', customPath: '' },
+    });
+  };
+
+  const removePath = (hostIndex: number, pathIndex: number) => {
+    const updatedHosts = [...formData.hosts];
+    updatedHosts[hostIndex] = {
+      ...updatedHosts[hostIndex],
+      paths: updatedHosts[hostIndex].paths.filter((_, i) => i !== pathIndex),
+    };
+
+    setFormData({
+      ...formData,
+      hosts: updatedHosts,
     });
   };
 
@@ -153,10 +179,20 @@ export default function EditIngress() {
       return;
     }
 
-    const { useAllRoutes, ...ingressData } = formData;
+    if (formData.hosts.length === 0) {
+      toast.error('At least one host is required');
+      return;
+    }
+
+    for (let i = 0; i < formData.hosts.length; i++) {
+      if (formData.hosts[i].paths.length === 0) {
+        toast.error(`Host "${formData.hosts[i].hostname}" must have at least one path`);
+        return;
+      }
+    }
 
     try {
-      await updateIngress(ingress.id, ingressData);
+      await updateIngress(ingress.id, formData);
       toast.success('Ingress updated');
       navigate(`/templates/${templateId}?tab=ingresses`);
     } catch (error) {
@@ -180,13 +216,13 @@ export default function EditIngress() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Template
           </Button>
-          
+
           <div className="flex items-center gap-3">
             <Network className="h-6 w-6 text-primary" />
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Edit Ingress</h1>
               <p className="mt-1 text-muted-foreground">
-                Configure ingress rules for external traffic
+                Configure ingress rules for external traffic with host-specific routing
               </p>
             </div>
           </div>
@@ -197,7 +233,7 @@ export default function EditIngress() {
           <CardHeader>
             <CardTitle>Ingress Details</CardTitle>
             <CardDescription>
-              Configure ingress rules for external traffic
+              Configure hosts and their routing rules for external traffic
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -230,22 +266,6 @@ export default function EditIngress() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="defaultHost">Default Host (optional)</Label>
-              <Input
-                id="defaultHost"
-                placeholder="app.example.com"
-                value={formData.defaultHost}
-                onChange={(e) =>
-                  setFormData({ ...formData, defaultHost: e.target.value })
-                }
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                Actual hosts are assigned when creating chart versions
-              </p>
             </div>
 
             <div className="rounded-lg border border-border p-4 space-y-4">
@@ -285,112 +305,174 @@ export default function EditIngress() {
               )}
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label>Routing Rules</Label>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="useAllRoutes" className="text-sm font-normal text-muted-foreground">
-                    Use all routes
-                  </Label>
-                  <Switch
-                    id="useAllRoutes"
-                    checked={formData.useAllRoutes}
-                    onCheckedChange={handleUseAllRoutesChange}
-                    disabled={allRoutes.length === 0}
-                  />
-                </div>
+                <Label>Hosts and Routes *</Label>
+                <Badge variant="secondary">{formData.hosts.length} host(s)</Badge>
               </div>
-              
-              {formData.useAllRoutes ? (
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <p className="text-sm text-muted-foreground mb-2">
-                    All {allRoutes.length} route(s) from all services will be included:
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {allRoutes.map((rule, i) => (
-                      <Badge key={i} variant="secondary" className="font-mono text-xs">
-                        {rule.path} → {rule.serviceName}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <Select
-                        value={ruleForm.serviceName}
-                        onValueChange={(value) =>
-                          setRuleForm({ ...ruleForm, serviceName: value, selectedRoute: '', customPath: '' })
-                        }
-                      >
-                        <SelectTrigger className="w-48">
-                          <SelectValue placeholder="Select Service" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {templateServices.map((svc) => (
-                            <SelectItem key={svc.id} value={svc.name}>
-                              {svc.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={ruleForm.selectedRoute}
-                        onValueChange={(value) =>
-                          setRuleForm({ ...ruleForm, selectedRoute: value, customPath: '' })
-                        }
-                        disabled={!ruleForm.serviceName}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Select Route" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {selectedService?.routes.map((route, idx) => (
-                            <SelectItem key={idx} value={route.path}>
-                              {route.path}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value="__custom__">Custom Route...</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button type="button" variant="secondary" onClick={addRule} disabled={!ruleForm.serviceName}>
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {isCustomRoute && (
-                      <Input
-                        placeholder="/custom-path"
-                        value={ruleForm.customPath}
-                        onChange={(e) => setRuleForm({ ...ruleForm, customPath: e.target.value })}
-                        className="font-mono"
-                      />
-                    )}
-                  </div>
-                  {formData.rules.length > 0 && (
-                    <div className="space-y-2">
-                      {formData.rules.map((rule, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2"
+
+              {/* Add Host Form */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="app.example.com"
+                  value={hostForm.hostname}
+                  onChange={(e) => setHostForm({ hostname: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addHost();
+                    }
+                  }}
+                  className="font-mono"
+                />
+                <Button type="button" onClick={addHost}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Host
+                </Button>
+              </div>
+
+              {/* Hosts List */}
+              <div className="space-y-4">
+                {formData.hosts.map((host, hostIndex) => (
+                  <Card key={hostIndex} className="border-2">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Globe className="h-4 w-4 text-primary" />
+                          <span className="font-mono font-semibold">{host.hostname}</span>
+                          <Badge variant="outline">{host.paths.length} path(s)</Badge>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeHost(hostIndex)}
                         >
-                          <span className="font-mono text-sm">
-                            {rule.path} → {rule.serviceName}
-                          </span>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {/* Add Path Form */}
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Select
+                            value={pathForms[hostIndex]?.serviceName || ''}
+                            onValueChange={(value) =>
+                              setPathForms({
+                                ...pathForms,
+                                [hostIndex]: { serviceName: value, selectedRoute: '', customPath: '' },
+                              })
+                            }
+                          >
+                            <SelectTrigger className="w-48">
+                              <SelectValue placeholder="Select Service" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {templateServices.map((svc) => (
+                                <SelectItem key={svc.id} value={svc.name}>
+                                  {svc.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={pathForms[hostIndex]?.selectedRoute || ''}
+                            onValueChange={(value) =>
+                              setPathForms({
+                                ...pathForms,
+                                [hostIndex]: {
+                                  ...pathForms[hostIndex],
+                                  serviceName: pathForms[hostIndex]?.serviceName || '',
+                                  selectedRoute: value,
+                                  customPath: ''
+                                },
+                              })
+                            }
+                            disabled={!pathForms[hostIndex]?.serviceName}
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Select Route" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {templateServices
+                                .find((s) => s.name === pathForms[hostIndex]?.serviceName)
+                                ?.routes.map((route, idx) => (
+                                  <SelectItem key={idx} value={route.path}>
+                                    {route.path}
+                                  </SelectItem>
+                                ))}
+                              <SelectItem value="__custom__">Custom Route...</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <Button
                             type="button"
-                            variant="ghost"
+                            variant="secondary"
                             size="icon"
-                            className="h-6 w-6"
-                            onClick={() => removeRule(i)}
+                            onClick={() => addPath(hostIndex)}
+                            disabled={!pathForms[hostIndex]?.serviceName}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Plus className="h-4 w-4" />
                           </Button>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </>
+                        {pathForms[hostIndex]?.selectedRoute === '__custom__' && (
+                          <Input
+                            placeholder="/custom-path"
+                            value={pathForms[hostIndex]?.customPath || ''}
+                            onChange={(e) =>
+                              setPathForms({
+                                ...pathForms,
+                                [hostIndex]: {
+                                  ...pathForms[hostIndex],
+                                  customPath: e.target.value
+                                },
+                              })
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                addPath(hostIndex);
+                              }
+                            }}
+                            className="font-mono"
+                          />
+                        )}
+                      </div>
+
+                      {/* Paths List */}
+                      {host.paths.length > 0 && (
+                        <div className="space-y-2 pt-2 border-t">
+                          {host.paths.map((pathItem, pathIndex) => (
+                            <div
+                              key={pathIndex}
+                              className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2"
+                            >
+                              <span className="font-mono text-sm">
+                                {pathItem.path} → {pathItem.serviceName}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => removePath(hostIndex, pathIndex)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {formData.hosts.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Globe className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                  <p className="text-sm">No hosts configured yet. Add a host to get started.</p>
+                </div>
               )}
             </div>
 
@@ -411,4 +493,3 @@ export default function EditIngress() {
     </MainLayout>
   );
 }
-
