@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Download, Trash2, Check, X, ArrowUpCircle, Eye } from 'lucide-react';
+import { Plus, Download, Trash2, Check, X, ArrowUpCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useState } from 'react';
@@ -123,7 +123,11 @@ export function VersionsTab({ template }: VersionsTabProps) {
             </TableHeader>
             <TableBody>
               {sortedVersions.map((version) => (
-                <TableRow key={version.id}>
+                <TableRow 
+                  key={version.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => navigate(`/templates/${template.id}/versions/${version.id}`)}
+                >
                   <TableCell className="font-mono font-medium">v{version.versionName}</TableCell>
                   <TableCell>
                     {version.appVersion ? (
@@ -166,17 +170,7 @@ export function VersionsTab({ template }: VersionsTabProps) {
                     {format(new Date(version.createdAt), 'MMM d, yyyy')}
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
-                      <Link to={`/templates/${template.id}/versions/${version.id}`}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="View version details"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                      </Link>
+                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="ghost"
                         size="icon"

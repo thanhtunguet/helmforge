@@ -680,7 +680,7 @@ export default function NewVersion() {
 
   return (
     <MainLayout>
-      <div className="animate-fade-in max-w-3xl">
+      <div className="animate-fade-in w-full">
         {/* Header */}
         <div className="mb-8">
           <Button
