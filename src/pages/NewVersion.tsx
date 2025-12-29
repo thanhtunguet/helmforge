@@ -32,7 +32,7 @@ const STEPS = [
   { id: 'images', label: 'Image Tags', icon: Tag },
   { id: 'env', label: 'Environment', icon: Variable },
   { id: 'configmaps', label: 'ConfigMaps', icon: FileJson },
-  { id: 'secrets', label: 'TLS Secrets', icon: Lock },
+  { id: 'secrets', label: 'Secrets', icon: Lock },
   { id: 'ingress', label: 'Ingress Hosts', icon: Network },
   { id: 'options', label: 'Options', icon: Settings },
   { id: 'review', label: 'Review', icon: Check },
@@ -65,6 +65,7 @@ export default function NewVersion() {
     envValues: {},
     configMapValues: {},
     tlsSecretValues: {},
+    opaqueSecretValues: {},
     enableNginxGateway: undefined,
     enableRedis: undefined,
   });
@@ -106,6 +107,7 @@ export default function NewVersion() {
       envValues: {},
       configMapValues: {},
       tlsSecretValues: {},
+      opaqueSecretValues: {},
       enableNginxGateway: undefined,
       enableRedis: undefined,
     };
@@ -140,7 +142,15 @@ export default function NewVersion() {
       }
     });
 
-
+    // Initialize opaque secret values with defaults
+    template.opaqueSecrets.forEach((secret) => {
+      initialValues.opaqueSecretValues[secret.name] = {};
+      secret.keys.forEach((key) => {
+        if (key.defaultValue) {
+          initialValues.opaqueSecretValues[secret.name][key.name] = key.defaultValue;
+        }
+      });
+    });
 
     setValues(initialValues);
     hasInitialized.current = true;
@@ -442,67 +452,134 @@ export default function NewVersion() {
         return (
           <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle>TLS Secret Values</CardTitle>
+              <CardTitle>Secret Values</CardTitle>
               <CardDescription>
-                Provide certificate and key data (masked for security)
+                Provide values for TLS certificates and opaque secrets
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {template.tlsSecrets.length === 0 ? (
-                <p className="text-muted-foreground">No TLS secrets defined</p>
-              ) : (
-                template.tlsSecrets.map((secret) => (
-                  <div key={secret.id} className="space-y-3 p-4 rounded-lg border border-border">
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                      <Lock className="h-4 w-4 text-success" />
-                      {secret.name}
-                    </h4>
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">tls.crt</Label>
-                        <Textarea
-                          placeholder="-----BEGIN CERTIFICATE-----"
-                          value={values.tlsSecretValues[secret.name]?.crt || ''}
-                          onChange={(e) =>
-                            setValues({
-                              ...values,
-                              tlsSecretValues: {
-                                ...values.tlsSecretValues,
-                                [secret.name]: {
-                                  ...values.tlsSecretValues[secret.name],
-                                  crt: e.target.value,
+              {/* TLS Secrets */}
+              {template.tlsSecrets.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Lock className="h-4 w-4" />
+                    TLS Secrets
+                  </h3>
+                  {template.tlsSecrets.map((secret) => (
+                    <div key={secret.id} className="space-y-3 p-4 rounded-lg border border-border">
+                      <h4 className="font-medium text-sm flex items-center gap-2">
+                        <Badge variant="secondary">{secret.name}</Badge>
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">tls.crt</Label>
+                          <Textarea
+                            placeholder="-----BEGIN CERTIFICATE-----"
+                            value={values.tlsSecretValues[secret.name]?.crt || ''}
+                            onChange={(e) =>
+                              setValues({
+                                ...values,
+                                tlsSecretValues: {
+                                  ...values.tlsSecretValues,
+                                  [secret.name]: {
+                                    ...values.tlsSecretValues[secret.name],
+                                    crt: e.target.value,
+                                  },
                                 },
-                              },
-                            })
-                          }
-                          className="font-mono text-xs"
-                          rows={4}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">tls.key</Label>
-                        <Textarea
-                          placeholder="-----BEGIN PRIVATE KEY-----"
-                          value={values.tlsSecretValues[secret.name]?.key || ''}
-                          onChange={(e) =>
-                            setValues({
-                              ...values,
-                              tlsSecretValues: {
-                                ...values.tlsSecretValues,
-                                [secret.name]: {
-                                  ...values.tlsSecretValues[secret.name],
-                                  key: e.target.value,
+                              })
+                            }
+                            className="font-mono text-xs"
+                            rows={4}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">tls.key</Label>
+                          <Textarea
+                            placeholder="-----BEGIN PRIVATE KEY-----"
+                            value={values.tlsSecretValues[secret.name]?.key || ''}
+                            onChange={(e) =>
+                              setValues({
+                                ...values,
+                                tlsSecretValues: {
+                                  ...values.tlsSecretValues,
+                                  [secret.name]: {
+                                    ...values.tlsSecretValues[secret.name],
+                                    key: e.target.value,
+                                  },
                                 },
-                              },
-                            })
-                          }
-                          className="font-mono text-xs"
-                          rows={4}
-                        />
+                              })
+                            }
+                            className="font-mono text-xs"
+                            rows={4}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
+              )}
+
+              {/* Opaque Secrets */}
+              {template.opaqueSecrets.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Lock className="h-4 w-4" />
+                    Opaque Secrets
+                  </h3>
+                  {template.opaqueSecrets.map((secret) => (
+                    <div key={secret.id} className="space-y-3 p-4 rounded-lg border border-border">
+                      <h4 className="font-medium text-sm flex items-center gap-2">
+                        <Badge variant="secondary">{secret.name}</Badge>
+                      </h4>
+                      {secret.keys.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No keys defined</p>
+                      ) : (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {secret.keys.map((key) => (
+                            <div key={key.name} className="space-y-1">
+                              <Label htmlFor={`secret-${secret.name}-${key.name}`} className="text-xs">
+                                {key.name}
+                              </Label>
+                              {key.description && (
+                                <p className="text-xs text-muted-foreground mb-1">
+                                  {key.description}
+                                </p>
+                              )}
+                              <Input
+                                id={`secret-${secret.name}-${key.name}`}
+                                type="password"
+                                placeholder={key.defaultValue || 'Enter secret value'}
+                                value={values.opaqueSecretValues[secret.name]?.[key.name] || ''}
+                                onChange={(e) =>
+                                  setValues({
+                                    ...values,
+                                    opaqueSecretValues: {
+                                      ...values.opaqueSecretValues,
+                                      [secret.name]: {
+                                        ...values.opaqueSecretValues[secret.name],
+                                        [key.name]: e.target.value,
+                                      },
+                                    },
+                                  })
+                                }
+                                className="font-mono text-sm"
+                              />
+                              {key.defaultValue && !values.opaqueSecretValues[secret.name]?.[key.name] && (
+                                <p className="text-xs text-muted-foreground">
+                                  Default: {key.defaultValue}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {template.tlsSecrets.length === 0 && template.opaqueSecrets.length === 0 && (
+                <p className="text-muted-foreground">No secrets defined</p>
               )}
             </CardContent>
           </Card>

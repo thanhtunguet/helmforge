@@ -359,16 +359,58 @@ export default function VersionDetail() {
           </Card>
         )}
 
-        {/* Opaque Secrets */}
+        {/* Opaque Secret Values */}
+        {Object.keys(version.values.opaqueSecretValues || {}).length > 0 && (
+          <Card className="mb-6 bg-card border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="h-5 w-5" />
+                Opaque Secret Values
+              </CardTitle>
+              <CardDescription>
+                Secret values configured for this version
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {Object.entries(version.values.opaqueSecretValues || {}).map(([secretName, secretValues]) => {
+                  if (!secretValues || Object.keys(secretValues).length === 0) return null;
+                  return (
+                    <div
+                      key={secretName}
+                      className="p-3 rounded-lg bg-muted/50 space-y-2"
+                    >
+                      <h4 className="text-sm font-medium">{secretName}</h4>
+                      <div className="space-y-2">
+                        {Object.entries(secretValues).map(([keyName, value]) => (
+                          <div key={keyName} className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-mono text-muted-foreground">
+                                {keyName}
+                              </p>
+                            </div>
+                            <p className="text-sm font-mono break-all">{'•'.repeat(Math.min(value?.length || 0, 20))}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Opaque Secrets (Template Definition) */}
         {template && template.opaqueSecrets.length > 0 && (
           <Card className="mb-6 bg-card border-border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Lock className="h-5 w-5" />
-                Secrets
+                Secret Keys
               </CardTitle>
               <CardDescription>
-                Secret keys configured (values are hidden for security)
+                Secret keys defined in template
               </CardDescription>
             </CardHeader>
             <CardContent>

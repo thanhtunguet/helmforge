@@ -124,6 +124,7 @@ export interface ChartVersionValues {
   envValues: Record<string, Record<string, string>>;
   configMapValues: Record<string, Record<string, string>>;
   tlsSecretValues: Record<string, { crt: string; key: string }>;
+  opaqueSecretValues: Record<string, Record<string, string>>;
   enableNginxGateway?: boolean;
   enableRedis?: boolean;
   registryPassword?: string;
