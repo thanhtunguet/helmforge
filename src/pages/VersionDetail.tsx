@@ -385,6 +385,10 @@ export default function VersionDetail() {
                       </div>
                       {ing.hosts.map((host, idx) => {
                         const tlsConfig = ing.tls?.find(t => t.hosts.includes(host.hostname));
+                        // Sort paths alphabetically descending
+                        const sortedPaths = [...host.paths].sort((a, b) => 
+                          b.path.localeCompare(a.path)
+                        );
                         return (
                           <div key={idx} className="p-3 rounded-lg bg-muted/50">
                             <div className="flex items-center gap-2 mb-2">
@@ -396,11 +400,23 @@ export default function VersionDetail() {
                                 </Badge>
                               )}
                             </div>
-                            <div className="flex flex-wrap gap-1">
-                              {host.paths.map((path, pathIdx) => (
-                                <Badge key={pathIdx} variant="outline" className="text-xs font-mono">
-                                  {path.path} → {path.serviceName}
-                                </Badge>
+                            {/* Tree view for routes */}
+                            <div className="ml-2 space-y-1">
+                              {sortedPaths.map((path, pathIdx) => (
+                                <div 
+                                  key={pathIdx} 
+                                  className="flex items-center gap-2 text-sm py-1"
+                                >
+                                  <div className="flex items-center gap-1 text-muted-foreground">
+                                    <div className="w-4 h-px bg-border"></div>
+                                    <div className="w-2 h-2 rounded-full bg-border"></div>
+                                  </div>
+                                  <span className="font-mono text-xs">{path.path}</span>
+                                  <span className="text-muted-foreground">→</span>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {path.serviceName}
+                                  </Badge>
+                                </div>
                               ))}
                             </div>
                           </div>
