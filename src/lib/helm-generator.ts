@@ -580,3 +580,60 @@ export async function downloadChart(
   const content = createTarGz(files);
   saveAs(content, `${chartName}-${version.versionName}.tgz`);
 }
+
+/**
+ * Generate chart files for viewing in the file browser
+ * Returns an array of files with their paths and contents
+ */
+export function generateChartFiles(
+  template: TemplateWithRelations,
+  version: ChartVersion
+): Array<{ name: string; content: string }> {
+  const chartName = template.name.toLowerCase().replace(/\s+/g, '-');
+  const files: Array<{ name: string; content: string }> = [];
+
+  // Chart.yaml
+  files.push({ name: `${chartName}/Chart.yaml`, content: generateChartYaml(template, version) });
+
+  // values.yaml
+  files.push({ name: `${chartName}/values.yaml`, content: generateValuesYaml(template, version) });
+
+  // Service deployments and services
+  template.services.forEach((svc) => {
+    files.push({ name: `${chartName}/templates/deployment-${svc.name}.yaml`, content: generateDeploymentYaml(svc.name, template) });
+    files.push({ name: `${chartName}/templates/service-${svc.name}.yaml`, content: generateServiceYaml(svc.name, template) });
+  });
+
+  // ConfigMaps
+  template.configMaps.forEach((cm) => {
+    files.push({ name: `${chartName}/templates/configmap-${cm.name}.yaml`, content: generateConfigMapYaml(cm.name, template) });
+  });
+
+  // Registry secret
+  files.push({ name: `${chartName}/templates/secret-registry.yaml`, content: generateRegistrySecretYaml(template) });
+
+  // TLS secrets
+  template.tlsSecrets.forEach((secret) => {
+    files.push({ name: `${chartName}/templates/secret-tls-${secret.name}.yaml`, content: generateTLSSecretYaml(secret.name) });
+  });
+
+  // Nginx gateway
+  if (version.values.enableNginxGateway ?? template.enableNginxGateway) {
+    files.push({ name: `${chartName}/templates/configmap-nginx-gateway.yaml`, content: generateNginxConfigMap(template) });
+    files.push({ name: `${chartName}/templates/deployment-nginx-gateway.yaml`, content: generateNginxDeploymentYaml() });
+    files.push({ name: `${chartName}/templates/service-nginx-gateway.yaml`, content: generateNginxServiceYaml() });
+  }
+
+  // Redis
+  if (version.values.enableRedis ?? template.enableRedis) {
+    files.push({ name: `${chartName}/templates/deployment-redis.yaml`, content: generateRedisDeploymentYaml() });
+    files.push({ name: `${chartName}/templates/service-redis.yaml`, content: generateRedisServiceYaml() });
+  }
+
+  // Ingresses
+  template.ingresses.forEach((ing) => {
+    files.push({ name: `${chartName}/templates/ingress-${ing.name}.yaml`, content: generateIngressYaml(ing.name, template) });
+  });
+
+  return files;
+}

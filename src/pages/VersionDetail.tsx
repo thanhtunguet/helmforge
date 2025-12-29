@@ -17,11 +17,15 @@ import {
   Check,
   X,
   Calendar,
+  FileCode,
+  LayoutList,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { downloadChart } from '@/lib/helm-generator';
 import { TemplateWithRelations } from '@/types/helm';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { YamlViewMode } from '@/components/template/YamlViewMode';
 
 export default function VersionDetail() {
   const { templateId, versionId } = useParams();
@@ -121,8 +125,23 @@ export default function VersionDetail() {
           </div>
         </div>
 
-        {/* Version Information */}
-        <Card className="mb-6 bg-card border-border">
+        {/* Tabs */}
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="overview" className="gap-2">
+              <LayoutList className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="yaml-view" className="gap-2">
+              <FileCode className="h-4 w-4" />
+              YAML View
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview">
+            {/* Version Information */}
+            <Card className="mb-6 bg-card border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Tag className="h-5 w-5" />
@@ -468,6 +487,13 @@ export default function VersionDetail() {
             </Button>
           </div>
         </div>
+          </TabsContent>
+
+          {/* YAML View Tab */}
+          <TabsContent value="yaml-view">
+            <YamlViewMode template={template} version={version} />
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
   );
