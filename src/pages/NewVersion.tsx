@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadChart } from '@/lib/helm-generator';
+import { IngressRouteTree } from '@/components/template/IngressRouteTree';
 
 const STEPS = [
   { id: 'info', label: 'Version Info', icon: Tag },
@@ -534,14 +535,8 @@ export default function NewVersion() {
                     <div className="space-y-2">
                       {ing.hosts.map((host, idx) => (
                         <div key={idx} className="rounded-lg bg-muted/50 p-3">
-                          <p className="font-mono text-sm font-semibold mb-1">{host.hostname}</p>
-                          <div className="flex flex-wrap gap-1">
-                            {host.paths.map((path, pathIdx) => (
-                              <Badge key={pathIdx} variant="outline" className="text-xs font-mono">
-                                {path.path} → {path.serviceName}
-                              </Badge>
-                            ))}
-                          </div>
+                          <p className="font-mono text-sm font-semibold mb-2">{host.hostname}</p>
+                          <IngressRouteTree routes={host.paths} />
                         </div>
                       ))}
                       {ing.hosts.length === 0 && (

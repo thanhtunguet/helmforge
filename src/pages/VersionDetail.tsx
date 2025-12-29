@@ -28,6 +28,7 @@ import { TemplateWithRelations } from '@/types/helm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { YamlViewMode } from '@/components/template/YamlViewMode';
 import { PlaygroundView } from '@/components/template/PlaygroundView';
+import { IngressRouteTree } from '@/components/template/IngressRouteTree';
 
 export default function VersionDetail() {
   const { templateId, versionId } = useParams();
@@ -358,6 +359,54 @@ export default function VersionDetail() {
           </Card>
         )}
 
+        {/* Opaque Secrets */}
+        {template && template.opaqueSecrets.length > 0 && (
+          <Card className="mb-6 bg-card border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="h-5 w-5" />
+                Secrets
+              </CardTitle>
+              <CardDescription>
+                Secret keys configured (values are hidden for security)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {template.opaqueSecrets.map((secret) => (
+                  <div
+                    key={secret.id}
+                    className="p-3 rounded-lg bg-muted/50 space-y-2"
+                  >
+                    <h4 className="text-sm font-medium">{secret.name}</h4>
+                    <div className="space-y-1">
+                      {secret.keys.map((key) => (
+                        <div key={key.name} className="flex items-start gap-2 py-1">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <div className="w-3 h-px bg-border"></div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-border"></div>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-mono">{key.name}</p>
+                            {key.description && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {key.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {secret.keys.length === 0 && (
+                        <p className="text-xs text-muted-foreground">No keys defined</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Ingress Configuration */}
         {template && template.ingresses.length > 0 && (
             <Card className="mb-6 bg-card border-border">
@@ -385,10 +434,6 @@ export default function VersionDetail() {
                       </div>
                       {ing.hosts.map((host, idx) => {
                         const tlsConfig = ing.tls?.find(t => t.hosts.includes(host.hostname));
-                        // Sort paths alphabetically descending
-                        const sortedPaths = [...host.paths].sort((a, b) => 
-                          b.path.localeCompare(a.path)
-                        );
                         return (
                           <div key={idx} className="p-3 rounded-lg bg-muted/50">
                             <div className="flex items-center gap-2 mb-2">
@@ -400,25 +445,7 @@ export default function VersionDetail() {
                                 </Badge>
                               )}
                             </div>
-                            {/* Tree view for routes */}
-                            <div className="ml-2 space-y-1">
-                              {sortedPaths.map((path, pathIdx) => (
-                                <div 
-                                  key={pathIdx} 
-                                  className="flex items-center gap-2 text-sm py-1"
-                                >
-                                  <div className="flex items-center gap-1 text-muted-foreground">
-                                    <div className="w-4 h-px bg-border"></div>
-                                    <div className="w-2 h-2 rounded-full bg-border"></div>
-                                  </div>
-                                  <span className="font-mono text-xs">{path.path}</span>
-                                  <span className="text-muted-foreground">→</span>
-                                  <Badge variant="secondary" className="text-xs">
-                                    {path.serviceName}
-                                  </Badge>
-                                </div>
-                              ))}
-                            </div>
+                            <IngressRouteTree routes={host.paths} />
                           </div>
                         );
                       })}
