@@ -83,7 +83,7 @@ export default function VersionDetail() {
 
   return (
     <MainLayout>
-      <div className="animate-fade-in max-w-4xl">
+      <div className="animate-fade-in w-full">
         {/* Header */}
         <div className="mb-8">
           <Button
