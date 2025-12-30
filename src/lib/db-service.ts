@@ -57,6 +57,7 @@ function dbTemplateToApp(dbTemplate: DbTemplateRow): Template {
     enableNginxGateway: dbTemplate.enable_nginx_gateway,
     enableRedis: dbTemplate.enable_redis,
     visibility: ((dbTemplate as unknown as { visibility?: string }).visibility as Template['visibility']) || 'private',
+    readme: (dbTemplate as unknown as { readme?: string | null }).readme || undefined,
     createdAt: dbTemplate.created_at,
     updatedAt: dbTemplate.updated_at,
   };
@@ -64,17 +65,18 @@ function dbTemplateToApp(dbTemplate: DbTemplateRow): Template {
 
 // Helper to convert app template to database format
 function appTemplateToDb(template: Template | Partial<Template>): Record<string, unknown> {
-  return {
-    name: template.name!,
-    description: template.description || null,
-    shared_port: template.sharedPort,
-    registry_url: template.registryUrl || null,
-    registry_project: template.registryProject || null,
-    registry_secret: template.registrySecret as unknown as Database['public']['Tables']['templates']['Row']['registry_secret'] || null,
-    enable_nginx_gateway: template.enableNginxGateway,
-    enable_redis: template.enableRedis,
-    visibility: template.visibility || 'private',
-  };
+  const result: Record<string, unknown> = {};
+  if (template.name !== undefined) result.name = template.name;
+  if (template.description !== undefined) result.description = template.description || null;
+  if (template.sharedPort !== undefined) result.shared_port = template.sharedPort;
+  if (template.registryUrl !== undefined) result.registry_url = template.registryUrl || null;
+  if (template.registryProject !== undefined) result.registry_project = template.registryProject || null;
+  if (template.registrySecret !== undefined) result.registry_secret = template.registrySecret as unknown as Database['public']['Tables']['templates']['Row']['registry_secret'] || null;
+  if (template.enableNginxGateway !== undefined) result.enable_nginx_gateway = template.enableNginxGateway;
+  if (template.enableRedis !== undefined) result.enable_redis = template.enableRedis;
+  if (template.visibility !== undefined) result.visibility = template.visibility || 'private';
+  if (template.readme !== undefined) result.readme = template.readme || null;
+  return result;
 }
 
 // Helper to convert database service to app service
@@ -236,6 +238,7 @@ function dbChartVersionToApp(dbVersion: DbChartVersionRow): ChartVersion {
     templateId: dbVersion.template_id,
     versionName: dbVersion.version_name,
     appVersion: dbVersion.app_version || undefined,
+    releaseNotes: (dbVersion as unknown as { release_notes?: string | null }).release_notes || undefined,
     values: (dbVersion.values as unknown as ChartVersionValues) || {
       imageTags: {},
       envValues: {},
@@ -248,18 +251,21 @@ function dbChartVersionToApp(dbVersion: DbChartVersionRow): ChartVersion {
 }
 
 // Helper to convert app chart version to database format
-function appChartVersionToDb(version: ChartVersion | Partial<ChartVersion>): Omit<DbChartVersionInsert, 'id' | 'created_at'> {
-  return {
-    template_id: version.templateId!,
-    version_name: version.versionName!,
-    app_version: version.appVersion || null,
-    values: (version.values || {
+function appChartVersionToDb(version: ChartVersion | Partial<ChartVersion>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  if (version.templateId !== undefined) result.template_id = version.templateId;
+  if (version.versionName !== undefined) result.version_name = version.versionName;
+  if (version.appVersion !== undefined) result.app_version = version.appVersion || null;
+  if (version.releaseNotes !== undefined) result.release_notes = version.releaseNotes || null;
+  if (version.values !== undefined) {
+    result.values = (version.values || {
       imageTags: {},
       envValues: {},
       configMapValues: {},
       tlsSecretValues: {},
-    }) as unknown as Database['public']['Tables']['chart_versions']['Row']['values'],
-  };
+    }) as unknown as Database['public']['Tables']['chart_versions']['Row']['values'];
+  }
+  return result;
 }
 
 // Template operations
@@ -593,12 +599,19 @@ export const chartVersionDb = {
   },
 
   async create(version: ChartVersion): Promise<ChartVersion> {
+    const insertData = {
+      id: version.id,
+      template_id: version.templateId,
+      version_name: version.versionName,
+      app_version: version.appVersion || null,
+      release_notes: version.releaseNotes || null,
+      values: version.values as unknown as Database['public']['Tables']['chart_versions']['Row']['values'],
+    };
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await supabase
       .from('chart_versions')
-      .insert({
-        id: version.id,
-        ...appChartVersionToDb(version),
-      })
+      .insert(insertData as any)
       .select()
       .single();
 

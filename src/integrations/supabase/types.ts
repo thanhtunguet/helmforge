@@ -19,6 +19,7 @@ export type Database = {
           app_version: string | null
           created_at: string
           id: string
+          release_notes: string | null
           template_id: string
           values: Json
           version_name: string
@@ -27,6 +28,7 @@ export type Database = {
           app_version?: string | null
           created_at?: string
           id?: string
+          release_notes?: string | null
           template_id: string
           values?: Json
           version_name: string
@@ -35,6 +37,7 @@ export type Database = {
           app_version?: string | null
           created_at?: string
           id?: string
+          release_notes?: string | null
           template_id?: string
           values?: Json
           version_name?: string
@@ -329,6 +332,7 @@ export type Database = {
           enable_redis: boolean
           id: string
           name: string
+          readme: string | null
           registry_project: string | null
           registry_secret: Json | null
           registry_url: string | null
@@ -344,6 +348,7 @@ export type Database = {
           enable_redis?: boolean
           id?: string
           name: string
+          readme?: string | null
           registry_project?: string | null
           registry_secret?: Json | null
           registry_url?: string | null
@@ -359,6 +364,7 @@ export type Database = {
           enable_redis?: boolean
           id?: string
           name?: string
+          readme?: string | null
           registry_project?: string | null
           registry_secret?: Json | null
           registry_url?: string | null

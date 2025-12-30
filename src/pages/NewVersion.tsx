@@ -22,10 +22,12 @@ import {
   Network,
   Settings,
   Download,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadChart } from '@/lib/helm-generator';
 import { IngressRouteTree } from '@/components/template/IngressRouteTree';
+import { MarkdownEditor } from '@/components/ui/markdown-editor';
 
 const STEPS = [
   { id: 'info', label: 'Version Info', icon: Tag },
@@ -35,6 +37,7 @@ const STEPS = [
   { id: 'secrets', label: 'Secrets', icon: Lock },
   { id: 'ingress', label: 'Ingress Hosts', icon: Network },
   { id: 'options', label: 'Options', icon: Settings },
+  { id: 'release-notes', label: 'Release Notes', icon: FileText },
   { id: 'review', label: 'Review', icon: Check },
 ];
 
@@ -58,6 +61,7 @@ export default function NewVersion() {
   const [versionInfo, setVersionInfo] = useState({
     versionName: initialVersionInfoFromState?.versionName || '0.1.0',
     appVersion: initialVersionInfoFromState?.appVersion || '1.0.0',
+    releaseNotes: '',
   });
 
   const [values, setValues] = useState<ChartVersionValues>({
@@ -202,6 +206,7 @@ export default function NewVersion() {
       templateId: template.id,
       versionName: versionInfo.versionName,
       appVersion: versionInfo.appVersion || undefined,
+      releaseNotes: versionInfo.releaseNotes || undefined,
       values,
       createdAt: new Date().toISOString(),
     };
@@ -668,6 +673,39 @@ export default function NewVersion() {
                   }
                 />
               </div>
+            </CardContent>
+          </Card>
+        );
+
+      case 'release-notes':
+        return (
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>Release Notes</CardTitle>
+              <CardDescription>
+                Add release notes for this version (optional). Supports Markdown.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MarkdownEditor
+                value={versionInfo.releaseNotes}
+                onChange={(val) => setVersionInfo({ ...versionInfo, releaseNotes: val })}
+                height="400px"
+                placeholder="## What's New
+
+- Feature 1
+- Feature 2
+
+## Bug Fixes
+
+- Fix 1
+- Fix 2
+
+## Breaking Changes
+
+- None
+"
+              />
             </CardContent>
           </Card>
         );
