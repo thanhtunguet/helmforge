@@ -1,10 +1,11 @@
 import { useHelmStore } from '@/lib/store';
-import { Template } from '@/types/helm';
+import { Template, TemplateVisibility } from '@/types/helm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,7 @@ export function TemplateSettingsDialog({
     registryUsername: template.registrySecret.username,
     enableNginxGateway: template.enableNginxGateway,
     enableRedis: template.enableRedis,
+    visibility: template.visibility,
   });
 
   useEffect(() => {
@@ -51,6 +53,7 @@ export function TemplateSettingsDialog({
         registryUsername: template.registrySecret.username,
         enableNginxGateway: template.enableNginxGateway,
         enableRedis: template.enableRedis,
+        visibility: template.visibility,
       });
     }
   }, [open, template]);
@@ -75,6 +78,7 @@ export function TemplateSettingsDialog({
         },
         enableNginxGateway: formData.enableNginxGateway,
         enableRedis: formData.enableRedis,
+        visibility: formData.visibility,
       });
 
       toast.success('Template updated');
@@ -214,6 +218,31 @@ export function TemplateSettingsDialog({
                   }
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Visibility */}
+          <div className="space-y-4">
+            <h4 className="font-medium">Visibility</h4>
+            <div className="space-y-2">
+              <Label htmlFor="visibility">Template Visibility</Label>
+              <Select
+                value={formData.visibility}
+                onValueChange={(value: TemplateVisibility) =>
+                  setFormData({ ...formData, visibility: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select visibility" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">🔒 Private - Only you can see</SelectItem>
+                  <SelectItem value="public">🌍 Public - Visible in Community Templates</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Public templates are visible to all authenticated users.
+              </p>
             </div>
           </div>
         </div>

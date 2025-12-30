@@ -8,9 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Box, Server, Shield } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowLeft, Box, Server, Shield, Eye } from 'lucide-react';
 import { toast } from 'sonner';
-import { Template } from '@/types/helm';
+import { Template, TemplateVisibility } from '@/types/helm';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function NewTemplate() {
@@ -29,6 +30,7 @@ export default function NewTemplate() {
     registryEmail: '',
     enableNginxGateway: true,
     enableRedis: false,
+    visibility: 'private' as TemplateVisibility,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,6 +71,7 @@ export default function NewTemplate() {
       },
       enableNginxGateway: formData.enableNginxGateway,
       enableRedis: formData.enableRedis,
+      visibility: formData.visibility,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -290,6 +293,55 @@ export default function NewTemplate() {
                     setFormData({ ...formData, enableRedis: checked })
                   }
                 />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Visibility */}
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <Eye className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>Visibility</CardTitle>
+                  <CardDescription>
+                    Control who can see this template
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="visibility">Template Visibility</Label>
+                <Select
+                  value={formData.visibility}
+                  onValueChange={(value: TemplateVisibility) =>
+                    setFormData({ ...formData, visibility: value })
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select visibility" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="private">
+                      <div className="flex items-center gap-2">
+                        <span>🔒 Private</span>
+                        <span className="text-muted-foreground text-xs">Only you can see</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="public">
+                      <div className="flex items-center gap-2">
+                        <span>🌍 Public</span>
+                        <span className="text-muted-foreground text-xs">Visible in Community Templates</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Public templates are visible to all authenticated users in the Community Templates section.
+                </p>
               </div>
             </CardContent>
           </Card>

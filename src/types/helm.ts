@@ -105,6 +105,8 @@ export interface Ingress {
   tls: IngressTLS[];
 }
 
+export type TemplateVisibility = 'private' | 'public';
+
 export interface Template {
   id: string;
   name: string;
@@ -115,6 +117,7 @@ export interface Template {
   registrySecret: RegistrySecret;
   enableNginxGateway: boolean;
   enableRedis: boolean;
+  visibility: TemplateVisibility;
   createdAt: string;
   updatedAt: string;
 }

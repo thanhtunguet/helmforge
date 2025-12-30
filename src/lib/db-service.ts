@@ -56,13 +56,14 @@ function dbTemplateToApp(dbTemplate: DbTemplateRow): Template {
     },
     enableNginxGateway: dbTemplate.enable_nginx_gateway,
     enableRedis: dbTemplate.enable_redis,
+    visibility: ((dbTemplate as unknown as { visibility?: string }).visibility as Template['visibility']) || 'private',
     createdAt: dbTemplate.created_at,
     updatedAt: dbTemplate.updated_at,
   };
 }
 
 // Helper to convert app template to database format
-function appTemplateToDb(template: Template | Partial<Template>): Omit<DbTemplateInsert, 'id' | 'user_id' | 'created_at' | 'updated_at'> {
+function appTemplateToDb(template: Template | Partial<Template>): Record<string, unknown> {
   return {
     name: template.name!,
     description: template.description || null,
@@ -72,6 +73,7 @@ function appTemplateToDb(template: Template | Partial<Template>): Omit<DbTemplat
     registry_secret: template.registrySecret as unknown as Database['public']['Tables']['templates']['Row']['registry_secret'] || null,
     enable_nginx_gateway: template.enableNginxGateway,
     enable_redis: template.enableRedis,
+    visibility: template.visibility || 'private',
   };
 }
 
@@ -290,13 +292,16 @@ export const templateDb = {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error('User not authenticated');
 
+    const insertData = {
+      id: template.id,
+      user_id: userData.user.id,
+      ...appTemplateToDb(template),
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await supabase
       .from('templates')
-      .insert({
-        id: template.id,
-        user_id: userData.user.id,
-        ...appTemplateToDb(template),
-      })
+      .insert(insertData as any)
       .select()
       .single();
 
