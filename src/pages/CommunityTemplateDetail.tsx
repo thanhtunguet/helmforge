@@ -17,11 +17,13 @@ import {
   Box,
   Settings,
   Globe,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useHelmStore } from '@/lib/store';
+import { MarkdownPreview } from '@/components/ui/markdown-editor';
 import type { 
   Template, 
   Service, 
@@ -63,7 +65,7 @@ export default function CommunityTemplateDetail() {
   const cloneTemplate = useHelmStore((state) => state.cloneTemplate);
   const loadFromDatabase = useHelmStore((state) => state.loadFromDatabase);
   
-  const activeTab = searchParams.get('tab') || 'services';
+  const activeTab = searchParams.get('tab') || 'readme';
 
   useEffect(() => {
     async function fetchTemplateData() {
@@ -110,6 +112,7 @@ export default function CommunityTemplateDetail() {
           enableNginxGateway: templateData.enable_nginx_gateway,
           enableRedis: templateData.enable_redis,
           visibility: templateData.visibility as TemplateVisibility,
+          readme: (templateData as unknown as { readme?: string | null }).readme || undefined,
           createdAt: templateData.created_at,
           updatedAt: templateData.updated_at,
         };
@@ -308,7 +311,7 @@ export default function CommunityTemplateDetail() {
 
         <Tabs value={activeTab} onValueChange={(value) => {
           const newSearchParams = new URLSearchParams(searchParams);
-          if (value === 'services') {
+          if (value === 'readme') {
             newSearchParams.delete('tab');
           } else {
             newSearchParams.set('tab', value);
@@ -316,6 +319,10 @@ export default function CommunityTemplateDetail() {
           navigate(`/community/${templateId}?${newSearchParams.toString()}`, { replace: true });
         }} className="space-y-6">
           <TabsList className="bg-muted/50 p-1">
+            <TabsTrigger value="readme" className="gap-2">
+              <FileText className="h-4 w-4" />
+              README
+            </TabsTrigger>
             <TabsTrigger value="services" className="gap-2">
               <Server className="h-4 w-4" />
               Services
@@ -345,6 +352,14 @@ export default function CommunityTemplateDetail() {
               </Badge>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="readme">
+            <Card>
+              <CardContent className="pt-6">
+                <MarkdownPreview content={template.readme || ''} />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="services">
             <div className="grid gap-4 md:grid-cols-2">

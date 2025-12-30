@@ -118,6 +118,7 @@ export interface Template {
   enableNginxGateway: boolean;
   enableRedis: boolean;
   visibility: TemplateVisibility;
+  readme?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -138,6 +139,7 @@ export interface ChartVersion {
   templateId: string;
   versionName: string;
   appVersion?: string;
+  releaseNotes?: string;
   values: ChartVersionValues;
   createdAt: string;
 }

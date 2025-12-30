@@ -16,6 +16,7 @@ import {
   Trash2,
   Download,
   FileCode,
+  FileText,
 } from 'lucide-react';
 import { ServicesTab } from '@/components/template/ServicesTab';
 import { ConfigMapsTab } from '@/components/template/ConfigMapsTab';
@@ -23,6 +24,7 @@ import { SecretsTab } from '@/components/template/SecretsTab';
 import { IngressesTab } from '@/components/template/IngressesTab';
 import { VersionsTab } from '@/components/template/VersionsTab';
 import { NginxConfigTab } from '@/components/template/NginxConfigTab';
+import { ReadmeTab } from '@/components/template/ReadmeTab';
 import { TemplateSettingsDialog } from '@/components/template/TemplateSettingsDialog';
 import {
   AlertDialog,
@@ -232,6 +234,10 @@ export default function TemplateDetail() {
                 Nginx Config
               </TabsTrigger>
             )}
+            <TabsTrigger value="readme" className="gap-2">
+              <FileText className="h-4 w-4" />
+              README
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="services">
@@ -254,6 +260,9 @@ export default function TemplateDetail() {
               <NginxConfigTab template={template} />
             </TabsContent>
           )}
+          <TabsContent value="readme">
+            <ReadmeTab template={template} />
+          </TabsContent>
         </Tabs>
       </div>
       
