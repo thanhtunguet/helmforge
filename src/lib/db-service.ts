@@ -239,6 +239,7 @@ function dbChartVersionToApp(dbVersion: DbChartVersionRow): ChartVersion {
       envValues: {},
       configMapValues: {},
       tlsSecretValues: {},
+      opaqueSecretValues: {},
     },
     createdAt: dbVersion.created_at,
   };

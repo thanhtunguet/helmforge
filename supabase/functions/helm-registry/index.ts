@@ -1,6 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { Tar } from 'https://deno.land/std@0.168.0/archive/tar.ts';
 import pako from 'https://esm.sh/pako@2.1.0';
 
 const corsHeaders = {
@@ -241,7 +240,7 @@ function generateValuesYaml(template: TemplateWithRelations, version: ChartVersi
     };
   });
 
-  return formatYaml(values as Record<string, unknown>);
+  return formatYaml(values as unknown as Record<string, unknown>);
 }
 
 // Generate Deployment YAML
@@ -548,40 +547,75 @@ spec:
 `;
 }
 
+// Simple tar file creation helper
+function createTarEntry(filename: string, content: Uint8Array): Uint8Array {
+  // Create a 512-byte header
+  const header = new Uint8Array(512);
+  const encoder = new TextEncoder();
+  
+  // File name (100 bytes)
+  const nameBytes = encoder.encode(filename);
+  header.set(nameBytes.subarray(0, Math.min(100, nameBytes.length)), 0);
+  
+  // File mode (8 bytes) - 0644
+  header.set(encoder.encode('0000644\0'), 100);
+  
+  // UID (8 bytes) - 0
+  header.set(encoder.encode('0000000\0'), 108);
+  
+  // GID (8 bytes) - 0
+  header.set(encoder.encode('0000000\0'), 116);
+  
+  // File size in octal (12 bytes)
+  const sizeStr = content.length.toString(8).padStart(11, '0') + '\0';
+  header.set(encoder.encode(sizeStr), 124);
+  
+  // Modification time (12 bytes)
+  const mtime = Math.floor(Date.now() / 1000).toString(8).padStart(11, '0') + '\0';
+  header.set(encoder.encode(mtime), 136);
+  
+  // Checksum placeholder (8 spaces)
+  header.set(encoder.encode('        '), 148);
+  
+  // Type flag (1 byte) - '0' for regular file
+  header[156] = 48; // ASCII '0'
+  
+  // Calculate checksum
+  let checksum = 0;
+  for (let i = 0; i < 512; i++) {
+    checksum += header[i];
+  }
+  const checksumStr = checksum.toString(8).padStart(6, '0') + '\0 ';
+  header.set(encoder.encode(checksumStr), 148);
+  
+  // Pad content to 512-byte boundary
+  const paddedSize = Math.ceil(content.length / 512) * 512;
+  const paddedContent = new Uint8Array(paddedSize);
+  paddedContent.set(content);
+  
+  // Combine header and content
+  const result = new Uint8Array(512 + paddedSize);
+  result.set(header, 0);
+  result.set(paddedContent, 512);
+  
+  return result;
+}
+
 // Generate full chart package as base64 string
 async function generateChartPackage(template: TemplateWithRelations, version: ChartVersion): Promise<string> {
   const chartName = template.name.toLowerCase().replace(/\s+/g, '-');
-
-  // Create tar archive
-  const tar = new Tar();
-
+  const encoder = new TextEncoder();
+  
+  // Collect all tar entries
+  const entries: Uint8Array[] = [];
+  
   // Helper function to add file to tar
   const addFile = (path: string, content: string) => {
     // Normalize line endings to LF and ensure content ends with newline
     const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const contentWithNewline = normalizedContent.endsWith('\n') ? normalizedContent : normalizedContent + '\n';
-
-    const encoder = new TextEncoder();
     const contentBytes = encoder.encode(contentWithNewline);
-
-    // Create a fresh reader for each file
-    const contentBytesCopy = new Uint8Array(contentBytes);
-    let offset = 0;
-    const reader: Deno.Reader = {
-      read(p: Uint8Array): Promise<number | null> {
-        if (offset >= contentBytesCopy.length) {
-          return Promise.resolve(null);
-        }
-        const bytesToRead = Math.min(p.length, contentBytesCopy.length - offset);
-        p.set(contentBytesCopy.subarray(offset, offset + bytesToRead));
-        offset += bytesToRead;
-        return Promise.resolve(bytesToRead);
-      },
-    };
-    tar.append(path, {
-      reader,
-      contentSize: contentBytesCopy.length,
-    });
+    entries.push(createTarEntry(path, contentBytes));
   };
 
   // Chart.yaml
@@ -627,24 +661,15 @@ async function generateChartPackage(template: TemplateWithRelations, version: Ch
     addFile(`${chartName}/templates/ingress-${ing.name}.yaml`, generateIngressYaml(ing.name, ing));
   });
 
-  // Write tar to buffer
-  const tarChunks: Uint8Array[] = [];
-  const writer: Deno.Writer = {
-    write(p: Uint8Array): Promise<number> {
-      tarChunks.push(new Uint8Array(p));
-      return Promise.resolve(p.length);
-    },
-  };
-  await tar.write(writer);
-
-  // Combine chunks
-  const totalLength = tarChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  // Combine all entries and add end-of-archive marker (2 blocks of zeros)
+  const totalLength = entries.reduce((sum, e) => sum + e.length, 0) + 1024;
   const tarBytes = new Uint8Array(totalLength);
   let offset = 0;
-  for (const chunk of tarChunks) {
-    tarBytes.set(chunk, offset);
-    offset += chunk.length;
+  for (const entry of entries) {
+    tarBytes.set(entry, offset);
+    offset += entry.length;
   }
+  // End-of-archive marker is already zeros
 
   // Gzip the tar archive using pako
   const gzipped = pako.gzip(tarBytes);

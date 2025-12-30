@@ -764,12 +764,12 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 type: kubernetes.io/dockerconfigjson
 data:
-  .dockerconfigjson: ${template.registryPassword ? btoa(JSON.stringify({
+  .dockerconfigjson: ${version.values.registryPassword ? btoa(JSON.stringify({
     auths: {
       [template.registryUrl || '']: {
         username: 'default',
-        password: template.registryPassword,
-        auth: btoa(`default:${template.registryPassword}`),
+        password: version.values.registryPassword,
+        auth: btoa(`default:${version.values.registryPassword}`),
       },
     },
   })) : 'e30K'}
