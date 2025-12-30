@@ -46,9 +46,10 @@ import { toast } from 'sonner';
 
 interface IngressesTabProps {
   template: TemplateWithRelations;
+  readOnly?: boolean;
 }
 
-export function IngressesTab({ template }: IngressesTabProps) {
+export function IngressesTab({ template, readOnly = false }: IngressesTabProps) {
   const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -119,20 +120,24 @@ export function IngressesTab({ template }: IngressesTabProps) {
             Define ingress rules for external access
           </p>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Ingress
-        </Button>
+        {!readOnly && (
+          <Button onClick={openNew}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Ingress
+          </Button>
+        )}
       </div>
 
       {template.ingresses.length === 0 ? (
         <Card className="border-dashed border-2 bg-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground mb-4">No ingresses defined yet</p>
-            <Button variant="outline" onClick={openNew}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add your first ingress
-            </Button>
+            {!readOnly && (
+              <Button variant="outline" onClick={openNew}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add your first ingress
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -144,15 +149,15 @@ export function IngressesTab({ template }: IngressesTabProps) {
                 <TableHead>Mode</TableHead>
                 <TableHead>TLS</TableHead>
                 <TableHead>Hosts</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                {!readOnly && <TableHead className="w-[100px]">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {template.ingresses.map((ingress) => (
                 <TableRow 
                   key={ingress.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => openEdit(ingress)}
+                  className={!readOnly ? "cursor-pointer hover:bg-muted/50" : ""}
+                  onClick={() => !readOnly && openEdit(ingress)}
                 >
                   <TableCell className="font-mono font-medium">{ingress.name}</TableCell>
                   <TableCell>
@@ -190,28 +195,30 @@ export function IngressesTab({ template }: IngressesTabProps) {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => openEdit(ingress)}
-                        title="Edit Ingress"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => setDeleteId(ingress.id)}
-                        title="Delete Ingress"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {!readOnly && (
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEdit(ingress)}
+                          title="Edit Ingress"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => setDeleteId(ingress.id)}
+                          title="Delete Ingress"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

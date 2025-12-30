@@ -39,6 +39,7 @@ interface HelmStore {
   addTemplate: (template: Template) => Promise<void>;
   updateTemplate: (id: string, template: Partial<Template>) => Promise<void>;
   deleteTemplate: (id: string) => Promise<void>;
+  cloneTemplate: (id: string) => Promise<string>;
   getTemplateWithRelations: (id: string) => TemplateWithRelations | undefined;
   
   // Service actions
@@ -139,6 +140,94 @@ export const useHelmStore = create<HelmStore>()(
         } catch (error) {
           console.error('Failed to delete template:', error);
           toast.error('Failed to delete template');
+          throw error;
+        }
+      },
+
+      cloneTemplate: async (id) => {
+        const state = get();
+        const sourceTemplate = state.templates.find((t) => t.id === id);
+        if (!sourceTemplate) throw new Error('Template not found');
+
+        const newTemplateId = crypto.randomUUID();
+        
+        try {
+          // Clone template with new ID and private visibility
+          const newTemplate: Template = {
+            ...sourceTemplate,
+            id: newTemplateId,
+            name: `${sourceTemplate.name} (Copy)`,
+            visibility: 'private',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          const savedTemplate = await templateDb.create(newTemplate);
+          set((state) => ({ templates: [...state.templates, savedTemplate] }));
+
+          // Clone services
+          const sourceServices = state.services.filter((s) => s.templateId === id);
+          for (const service of sourceServices) {
+            const newService: Service = {
+              ...service,
+              id: crypto.randomUUID(),
+              templateId: newTemplateId,
+            };
+            const savedService = await serviceDb.create(newService);
+            set((state) => ({ services: [...state.services, savedService] }));
+          }
+
+          // Clone config maps
+          const sourceConfigMaps = state.configMaps.filter((c) => c.templateId === id);
+          for (const configMap of sourceConfigMaps) {
+            const newConfigMap: ConfigMap = {
+              ...configMap,
+              id: crypto.randomUUID(),
+              templateId: newTemplateId,
+            };
+            const savedConfigMap = await configMapDb.create(newConfigMap);
+            set((state) => ({ configMaps: [...state.configMaps, savedConfigMap] }));
+          }
+
+          // Clone TLS secrets
+          const sourceTLSSecrets = state.tlsSecrets.filter((s) => s.templateId === id);
+          for (const secret of sourceTLSSecrets) {
+            const newSecret: TLSSecret = {
+              ...secret,
+              id: crypto.randomUUID(),
+              templateId: newTemplateId,
+            };
+            const savedSecret = await tlsSecretDb.create(newSecret);
+            set((state) => ({ tlsSecrets: [...state.tlsSecrets, savedSecret] }));
+          }
+
+          // Clone opaque secrets
+          const sourceOpaqueSecrets = state.opaqueSecrets.filter((s) => s.templateId === id);
+          for (const secret of sourceOpaqueSecrets) {
+            const newSecret: OpaqueSecret = {
+              ...secret,
+              id: crypto.randomUUID(),
+              templateId: newTemplateId,
+            };
+            const savedSecret = await opaqueSecretDb.create(newSecret);
+            set((state) => ({ opaqueSecrets: [...state.opaqueSecrets, savedSecret] }));
+          }
+
+          // Clone ingresses
+          const sourceIngresses = state.ingresses.filter((i) => i.templateId === id);
+          for (const ingress of sourceIngresses) {
+            const newIngress: Ingress = {
+              ...ingress,
+              id: crypto.randomUUID(),
+              templateId: newTemplateId,
+            };
+            const savedIngress = await ingressDb.create(newIngress);
+            set((state) => ({ ingresses: [...state.ingresses, savedIngress] }));
+          }
+
+          return newTemplateId;
+        } catch (error) {
+          console.error('Failed to clone template:', error);
+          toast.error('Failed to clone template');
           throw error;
         }
       },

@@ -39,9 +39,10 @@ import { toast } from 'sonner';
 
 interface SecretsTabProps {
   template: TemplateWithRelations;
+  readOnly?: boolean;
 }
 
-export function SecretsTab({ template }: SecretsTabProps) {
+export function SecretsTab({ template, readOnly = false }: SecretsTabProps) {
   const navigate = useNavigate();
   // TLS Secret state
   const [tlsDialogOpen, setTlsDialogOpen] = useState(false);
@@ -228,20 +229,24 @@ export function SecretsTab({ template }: SecretsTabProps) {
               Certificates for Ingress TLS termination
             </p>
           </div>
-          <Button onClick={openNewTls}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add TLS Secret
-          </Button>
+          {!readOnly && (
+            <Button onClick={openNewTls}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add TLS Secret
+            </Button>
+          )}
         </div>
 
         {template.tlsSecrets.length === 0 ? (
           <Card className="border-dashed border-2 bg-transparent">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <p className="text-muted-foreground mb-4">No TLS secrets defined yet</p>
-              <Button variant="outline" onClick={openNewTls}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add your first TLS secret
-              </Button>
+              {!readOnly && (
+                <Button variant="outline" onClick={openNewTls}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add your first TLS secret
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -251,17 +256,17 @@ export function SecretsTab({ template }: SecretsTabProps) {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Certificate</TableHead>
-                  <TableHead>Private Key</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
+                <TableHead>Certificate</TableHead>
+                <TableHead>Private Key</TableHead>
+                {!readOnly && <TableHead className="w-[100px]">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {template.tlsSecrets.map((secret) => (
                   <TableRow 
                     key={secret.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => openEditTls(secret)}
+                    className={!readOnly ? "cursor-pointer hover:bg-muted/50" : ""}
+                    onClick={() => !readOnly && openEditTls(secret)}
                   >
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -286,28 +291,30 @@ export function SecretsTab({ template }: SecretsTabProps) {
                         <X className="h-4 w-4 text-muted-foreground" />
                       )}
                     </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => openEditTls(secret)}
-                          title="Edit TLS Secret"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => setDeleteTlsId(secret.id)}
-                          title="Delete TLS Secret"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {!readOnly && (
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEditTls(secret)}
+                            title="Edit TLS Secret"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => setDeleteTlsId(secret.id)}
+                            title="Delete TLS Secret"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -325,20 +332,24 @@ export function SecretsTab({ template }: SecretsTabProps) {
               Generic secrets for sensitive data (credentials, tokens, etc.)
             </p>
           </div>
-          <Button onClick={openNewOpaque}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Opaque Secret
-          </Button>
+          {!readOnly && (
+            <Button onClick={openNewOpaque}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Opaque Secret
+            </Button>
+          )}
         </div>
 
         {template.opaqueSecrets.length === 0 ? (
           <Card className="border-dashed border-2 bg-transparent">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <p className="text-muted-foreground mb-4">No Opaque secrets defined yet</p>
-              <Button variant="outline" onClick={openNewOpaque}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add your first Opaque secret
-              </Button>
+              {!readOnly && (
+                <Button variant="outline" onClick={openNewOpaque}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add your first Opaque secret
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -347,17 +358,17 @@ export function SecretsTab({ template }: SecretsTabProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Keys</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Keys</TableHead>
+                {!readOnly && <TableHead className="w-[100px]">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {template.opaqueSecrets.map((secret) => (
                   <TableRow 
                     key={secret.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => openEditOpaque(secret)}
+                    className={!readOnly ? "cursor-pointer hover:bg-muted/50" : ""}
+                    onClick={() => !readOnly && openEditOpaque(secret)}
                   >
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -386,28 +397,30 @@ export function SecretsTab({ template }: SecretsTabProps) {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => openEditOpaque(secret)}
-                          title="Edit Opaque Secret"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => setDeleteOpaqueId(secret.id)}
-                          title="Delete Opaque Secret"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {!readOnly && (
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEditOpaque(secret)}
+                            title="Edit Opaque Secret"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => setDeleteOpaqueId(secret.id)}
+                            title="Delete Opaque Secret"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

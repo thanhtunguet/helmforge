@@ -38,9 +38,10 @@ import { toast } from 'sonner';
 
 interface ConfigMapsTabProps {
   template: TemplateWithRelations;
+  readOnly?: boolean;
 }
 
-export function ConfigMapsTab({ template }: ConfigMapsTabProps) {
+export function ConfigMapsTab({ template, readOnly = false }: ConfigMapsTabProps) {
   const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -136,20 +137,24 @@ export function ConfigMapsTab({ template }: ConfigMapsTabProps) {
             Define configuration data for your services
           </p>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add ConfigMap
-        </Button>
+        {!readOnly && (
+          <Button onClick={openNew}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add ConfigMap
+          </Button>
+        )}
       </div>
 
       {template.configMaps.length === 0 ? (
         <Card className="border-dashed border-2 bg-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground mb-4">No ConfigMaps defined yet</p>
-            <Button variant="outline" onClick={openNew}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add your first ConfigMap
-            </Button>
+            {!readOnly && (
+              <Button variant="outline" onClick={openNew}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add your first ConfigMap
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -159,15 +164,15 @@ export function ConfigMapsTab({ template }: ConfigMapsTabProps) {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Keys</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                {!readOnly && <TableHead className="w-[100px]">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {template.configMaps.map((cm) => (
                 <TableRow 
                   key={cm.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => openEdit(cm)}
+                  className={!readOnly ? "cursor-pointer hover:bg-muted/50" : ""}
+                  onClick={() => !readOnly && openEdit(cm)}
                 >
                   <TableCell className="font-mono font-medium">{cm.name}</TableCell>
                   <TableCell>
@@ -188,28 +193,30 @@ export function ConfigMapsTab({ template }: ConfigMapsTabProps) {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => openEdit(cm)}
-                        title="Edit ConfigMap"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => setDeleteId(cm.id)}
-                        title="Delete ConfigMap"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {!readOnly && (
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEdit(cm)}
+                          title="Edit ConfigMap"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => setDeleteId(cm.id)}
+                          title="Delete ConfigMap"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

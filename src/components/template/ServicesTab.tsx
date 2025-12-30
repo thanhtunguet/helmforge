@@ -45,6 +45,7 @@ import { toast } from 'sonner';
 
 interface ServicesTabProps {
   template: TemplateWithRelations;
+  readOnly?: boolean;
 }
 
 interface FormData {
@@ -59,7 +60,7 @@ interface FormData {
   useStatefulSet: boolean;
 }
 
-export function ServicesTab({ template }: ServicesTabProps) {
+export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingService, setEditingService] = useState<Service | null>(null);
@@ -277,20 +278,24 @@ export function ServicesTab({ template }: ServicesTabProps) {
             Define the services in your application
           </p>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Service
-        </Button>
+        {!readOnly && (
+          <Button onClick={openNew}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Service
+          </Button>
+        )}
       </div>
 
       {template.services.length === 0 ? (
         <Card className="border-dashed border-2 bg-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground mb-4">No services defined yet</p>
-            <Button variant="outline" onClick={openNew}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add your first service
-            </Button>
+            {!readOnly && (
+              <Button variant="outline" onClick={openNew}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add your first service
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -304,7 +309,7 @@ export function ServicesTab({ template }: ServicesTabProps) {
                 <TableHead>Env Vars</TableHead>
                 <TableHead>Health Check</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                {!readOnly && <TableHead className="w-[100px]">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -354,26 +359,28 @@ export function ServicesTab({ template }: ServicesTabProps) {
                       <Badge variant="secondary" className="text-xs">Deployment</Badge>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => openEdit(service)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => setDeleteId(service.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {!readOnly && (
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEdit(service)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => setDeleteId(service.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
