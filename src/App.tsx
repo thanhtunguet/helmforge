@@ -18,6 +18,7 @@ import EditConfigMap from './pages/EditConfigMap';
 import EditSecret from './pages/EditSecret';
 import EditIngress from './pages/EditIngress';
 import UserManagement from './pages/UserManagement';
+import CommunityTemplates from './pages/CommunityTemplates';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -118,6 +119,14 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <ServiceAccounts />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/community',
+    element: (
+      <ProtectedRoute>
+        <CommunityTemplates />
       </ProtectedRoute>
     ),
   },

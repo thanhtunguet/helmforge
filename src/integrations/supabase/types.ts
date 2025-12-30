@@ -335,6 +335,7 @@ export type Database = {
           shared_port: number
           updated_at: string
           user_id: string
+          visibility: Database["public"]["Enums"]["template_visibility"]
         }
         Insert: {
           created_at?: string
@@ -349,6 +350,7 @@ export type Database = {
           shared_port?: number
           updated_at?: string
           user_id: string
+          visibility?: Database["public"]["Enums"]["template_visibility"]
         }
         Update: {
           created_at?: string
@@ -363,6 +365,7 @@ export type Database = {
           shared_port?: number
           updated_at?: string
           user_id?: string
+          visibility?: Database["public"]["Enums"]["template_visibility"]
         }
         Relationships: []
       }
@@ -455,6 +458,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      template_visibility: "private" | "public"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -583,6 +587,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      template_visibility: ["private", "public"],
     },
   },
 } as const
