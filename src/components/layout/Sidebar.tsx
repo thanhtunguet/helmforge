@@ -60,7 +60,6 @@ export function Sidebar() {
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/templates/new', icon: Plus, label: 'New Template' },
-    { path: '/community', icon: Globe, label: 'Community Templates' },
     { path: '/service-accounts', icon: Key, label: 'Service Accounts' },
   ];
 
@@ -179,6 +178,13 @@ export function Sidebar() {
           </DropdownMenu>
 
           <div className="space-y-2">
+            <Link
+              to="/community"
+              className="flex items-center gap-2 rounded-lg py-2 text-xs transition-all text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
+            >
+              <Globe className="h-4 w-4" />
+              Community Templates
+            </Link>
             <Link
               to="/docs"
               target="_blank"

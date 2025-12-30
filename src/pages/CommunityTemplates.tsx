@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MainLayout } from '@/components/layout/MainLayout';
+import { PublicLayout } from '@/components/layout/PublicLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Box, Search, Globe, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Box, Search, Globe, ExternalLink } from 'lucide-react';
 import type { Template, RegistrySecret } from '@/types/helm';
 
 export default function CommunityTemplates() {
@@ -23,14 +22,12 @@ export default function CommunityTemplates() {
         const { data, error } = await supabase
           .from('templates')
           .select('*')
+          .eq('visibility', 'public')
           .order('updated_at', { ascending: false });
 
         if (error) throw error;
 
-        // Filter for public templates (visibility column may not be in types yet)
-        const publicTemplates = (data || []).filter((t: Record<string, unknown>) => t.visibility === 'public');
-
-        setTemplates(publicTemplates.map((t: Record<string, unknown>) => ({
+        setTemplates((data || []).map((t: Record<string, unknown>) => ({
           id: t.id as string,
           name: t.name as string,
           description: (t.description as string) || '',
@@ -66,20 +63,10 @@ export default function CommunityTemplates() {
   );
 
   return (
-    <MainLayout>
+    <PublicLayout>
       <div className="animate-fade-in w-full">
         {/* Header */}
         <div className="mb-8">
-          <Button
-            variant="ghost"
-            className="mb-4 -ml-4"
-            asChild
-          >
-            <Link to="/dashboard">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
-            </Link>
-          </Button>
           <div className="flex items-center gap-3 mb-2">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <Globe className="h-6 w-6 text-primary" />
@@ -175,6 +162,6 @@ export default function CommunityTemplates() {
           </div>
         )}
       </div>
-    </MainLayout>
+    </PublicLayout>
   );
 }

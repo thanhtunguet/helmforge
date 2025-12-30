@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { useHelmStore } from '@/lib/store';
-import { MainLayout } from '@/components/layout/MainLayout';
+import { PublicLayout } from '@/components/layout/PublicLayout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   ArrowLeft,
   Server,
@@ -12,78 +13,197 @@ import {
   Shield,
   Network,
   Copy,
-  FileCode,
   Loader2,
+  Box,
+  Settings,
+  Globe,
 } from 'lucide-react';
-import { ServicesTab } from '@/components/template/ServicesTab';
-import { ConfigMapsTab } from '@/components/template/ConfigMapsTab';
-import { SecretsTab } from '@/components/template/SecretsTab';
-import { IngressesTab } from '@/components/template/IngressesTab';
-import { NginxConfigTab } from '@/components/template/NginxConfigTab';
 import { toast } from 'sonner';
-import { TemplateWithRelations } from '@/types/helm';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useHelmStore } from '@/lib/store';
+import type { 
+  Template, 
+  Service, 
+  ConfigMap, 
+  TLSSecret, 
+  OpaqueSecret, 
+  Ingress, 
+  RegistrySecret, 
+  IngressRule, 
+  IngressHost,
+  IngressTLS,
+  EnvVarSchema, 
+  Route, 
+  OpaqueSecretKey, 
+  ConfigMapKey,
+  ConfigMapEnvSource,
+  SecretEnvSource,
+  TemplateVisibility 
+} from '@/types/helm';
+import type { Json } from '@/integrations/supabase/types';
+
+interface TemplateData {
+  template: Template;
+  services: Service[];
+  configMaps: ConfigMap[];
+  tlsSecrets: TLSSecret[];
+  opaqueSecrets: OpaqueSecret[];
+  ingresses: Ingress[];
+}
 
 export default function CommunityTemplateDetail() {
   const { templateId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [isCloning, setIsCloning] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<TemplateData | null>(null);
   const { user } = useAuth();
+  const cloneTemplate = useHelmStore((state) => state.cloneTemplate);
+  const loadFromDatabase = useHelmStore((state) => state.loadFromDatabase);
   
   const activeTab = searchParams.get('tab') || 'services';
-  
-  const templates = useHelmStore((state) => state.templates);
-  const services = useHelmStore((state) => state.services);
-  const configMaps = useHelmStore((state) => state.configMaps);
-  const tlsSecrets = useHelmStore((state) => state.tlsSecrets);
-  const opaqueSecrets = useHelmStore((state) => state.opaqueSecrets);
-  const ingresses = useHelmStore((state) => state.ingresses);
-  const cloneTemplate = useHelmStore((state) => state.cloneTemplate);
-  
-  const baseTemplate = templates.find((t) => t.id === templateId);
-  const template: TemplateWithRelations | undefined = baseTemplate
-    ? {
-        ...baseTemplate,
-        services: services.filter((s) => s.templateId === templateId),
-        configMaps: configMaps.filter((c) => c.templateId === templateId),
-        tlsSecrets: tlsSecrets.filter((s) => s.templateId === templateId),
-        opaqueSecrets: opaqueSecrets.filter((s) => s.templateId === templateId),
-        ingresses: ingresses.filter((i) => i.templateId === templateId),
-        versions: [],
-      }
-    : undefined;
 
-  if (!template) {
-    return (
-      <MainLayout>
-        <div className="flex flex-col items-center justify-center py-20">
-          <h2 className="text-xl font-semibold">Template not found</h2>
-          <p className="text-muted-foreground mb-4">
-            The requested template does not exist.
-          </p>
-          <Link to="/community">
-            <Button variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Community Templates
-            </Button>
-          </Link>
-        </div>
-      </MainLayout>
-    );
-  }
+  useEffect(() => {
+    async function fetchTemplateData() {
+      if (!templateId) return;
+      
+      setLoading(true);
+      try {
+        // Fetch template
+        const { data: templateData, error: templateError } = await supabase
+          .from('templates')
+          .select('*')
+          .eq('id', templateId)
+          .eq('visibility', 'public')
+          .single();
+
+        if (templateError || !templateData) {
+          setData(null);
+          return;
+        }
+
+        // Fetch related data in parallel
+        const [servicesRes, configMapsRes, tlsSecretsRes, opaqueSecretsRes, ingressesRes] = await Promise.all([
+          supabase.from('services').select('*').eq('template_id', templateId),
+          supabase.from('config_maps').select('*').eq('template_id', templateId),
+          supabase.from('tls_secrets').select('*').eq('template_id', templateId),
+          supabase.from('opaque_secrets').select('*').eq('template_id', templateId),
+          supabase.from('ingresses').select('*').eq('template_id', templateId),
+        ]);
+
+        const template: Template = {
+          id: templateData.id,
+          name: templateData.name,
+          description: templateData.description || '',
+          sharedPort: templateData.shared_port,
+          registryUrl: templateData.registry_url || '',
+          registryProject: templateData.registry_project || '',
+          registrySecret: (templateData.registry_secret as unknown as RegistrySecret) || {
+            name: 'registry-credentials',
+            type: 'registry',
+            server: templateData.registry_url || '',
+            username: '',
+            email: '',
+          },
+          enableNginxGateway: templateData.enable_nginx_gateway,
+          enableRedis: templateData.enable_redis,
+          visibility: templateData.visibility as TemplateVisibility,
+          createdAt: templateData.created_at,
+          updatedAt: templateData.updated_at,
+        };
+
+        const services: Service[] = (servicesRes.data || []).map((s) => ({
+          id: s.id,
+          templateId: s.template_id,
+          name: s.name,
+          routes: (s.routes as unknown as Route[]) || [],
+          envVars: (s.env_vars as unknown as EnvVarSchema[]) || [],
+          healthCheckEnabled: s.health_check_enabled,
+          livenessPath: s.liveness_path || '/health',
+          readinessPath: s.readiness_path || '/ready',
+          configMapEnvSources: (s.config_map_env_sources as unknown as ConfigMapEnvSource[]) || [],
+          secretEnvSources: (s.secret_env_sources as unknown as SecretEnvSource[]) || [],
+          useStatefulSet: s.use_stateful_set,
+        }));
+
+        const configMaps: ConfigMap[] = (configMapsRes.data || []).map((c) => ({
+          id: c.id,
+          templateId: c.template_id,
+          name: c.name,
+          keys: (c.keys as unknown as ConfigMapKey[]) || [],
+        }));
+
+        const tlsSecrets: TLSSecret[] = (tlsSecretsRes.data || []).map((s) => ({
+          id: s.id,
+          templateId: s.template_id,
+          name: s.name,
+          type: 'tls' as const,
+        }));
+
+        const opaqueSecrets: OpaqueSecret[] = (opaqueSecretsRes.data || []).map((s) => ({
+          id: s.id,
+          templateId: s.template_id,
+          name: s.name,
+          type: 'opaque' as const,
+          keys: (s.keys as unknown as OpaqueSecretKey[]) || [],
+        }));
+
+        const ingresses: Ingress[] = (ingressesRes.data || []).map((i) => {
+          // Parse legacy format (rules) to new format (hosts/tls)
+          const rules = (i.rules as unknown as IngressRule[]) || [];
+          const defaultHost = i.default_host || '';
+          
+          // Convert rules to hosts format
+          const hosts: IngressHost[] = defaultHost ? [{
+            hostname: defaultHost,
+            paths: rules.map(r => ({ path: r.path, serviceName: r.serviceName }))
+          }] : [];
+          
+          // Convert TLS settings
+          const tls: IngressTLS[] = i.tls_enabled && i.tls_secret_name ? [{
+            secretName: i.tls_secret_name,
+            hosts: defaultHost ? [defaultHost] : []
+          }] : [];
+
+          return {
+            id: i.id,
+            templateId: i.template_id,
+            name: i.name,
+            mode: i.mode as 'nginx-gateway' | 'direct-services',
+            hosts,
+            tls,
+          };
+        });
+
+        setData({ template, services, configMaps, tlsSecrets, opaqueSecrets, ingresses });
+      } catch (error) {
+        console.error('Error fetching template:', error);
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchTemplateData();
+  }, [templateId]);
 
   const handleClone = async () => {
     if (!user) {
       toast.error('Please sign in to clone templates');
-      navigate('/auth');
+      navigate('/auth', { state: { from: `/community/${templateId}` } });
       return;
     }
 
+    if (!data) return;
+
     setIsCloning(true);
     try {
-      const newTemplateId = await cloneTemplate(template.id);
-      toast.success(`Template "${template.name}" cloned successfully!`);
+      // Load data into store first if needed
+      await loadFromDatabase();
+      const newTemplateId = await cloneTemplate(data.template.id);
+      toast.success(`Template "${data.template.name}" cloned successfully!`);
       navigate(`/templates/${newTemplateId}`);
     } catch (error) {
       toast.error('Failed to clone template');
@@ -92,8 +212,47 @@ export default function CommunityTemplateDetail() {
     }
   };
 
+  if (loading) {
+    return (
+      <PublicLayout>
+        <div className="animate-fade-in">
+          <Skeleton className="h-8 w-48 mb-4" />
+          <Skeleton className="h-12 w-96 mb-2" />
+          <Skeleton className="h-6 w-64 mb-8" />
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-32" />
+            ))}
+          </div>
+        </div>
+      </PublicLayout>
+    );
+  }
+
+  if (!data) {
+    return (
+      <PublicLayout>
+        <div className="flex flex-col items-center justify-center py-20">
+          <Globe className="h-16 w-16 text-muted-foreground/50 mb-4" />
+          <h2 className="text-xl font-semibold">Template not found</h2>
+          <p className="text-muted-foreground mb-4">
+            The requested template does not exist or is not public.
+          </p>
+          <Link to="/community">
+            <Button variant="outline">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Community Templates
+            </Button>
+          </Link>
+        </div>
+      </PublicLayout>
+    );
+  }
+
+  const { template, services, configMaps, tlsSecrets, opaqueSecrets, ingresses } = data;
+
   return (
-    <MainLayout>
+    <PublicLayout>
       <div className="animate-fade-in">
         <div className="mb-8">
           <Button
@@ -161,57 +320,181 @@ export default function CommunityTemplateDetail() {
               <Server className="h-4 w-4" />
               Services
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {template.services.length}
+                {services.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="configmaps" className="gap-2">
               <FileJson className="h-4 w-4" />
               ConfigMaps
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {template.configMaps.length}
+                {configMaps.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="secrets" className="gap-2">
               <Shield className="h-4 w-4" />
               Secrets
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {template.tlsSecrets.length + template.opaqueSecrets.length + 1}
+                {tlsSecrets.length + opaqueSecrets.length + 1}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="ingresses" className="gap-2">
               <Network className="h-4 w-4" />
               Ingresses
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {template.ingresses.length}
+                {ingresses.length}
               </Badge>
             </TabsTrigger>
-            {template.enableNginxGateway && (
-              <TabsTrigger value="nginx" className="gap-2">
-                <FileCode className="h-4 w-4" />
-                Nginx Config
-              </TabsTrigger>
-            )}
           </TabsList>
 
           <TabsContent value="services">
-            <ServicesTab template={template} readOnly />
+            <div className="grid gap-4 md:grid-cols-2">
+              {services.length === 0 ? (
+                <Card className="col-span-full">
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <Server className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                    <p className="text-muted-foreground">No services defined</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                services.map((service) => (
+                  <Card key={service.id}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Box className="h-4 w-4" />
+                        {service.name}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {service.healthCheckEnabled && (
+                          <Badge variant="outline">Health Check</Badge>
+                        )}
+                        {service.useStatefulSet && (
+                          <Badge variant="outline">StatefulSet</Badge>
+                        )}
+                        <Badge variant="secondary">{service.routes.length} routes</Badge>
+                        <Badge variant="secondary">{service.envVars.length} env vars</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
           </TabsContent>
+
           <TabsContent value="configmaps">
-            <ConfigMapsTab template={template} readOnly />
+            <div className="grid gap-4 md:grid-cols-2">
+              {configMaps.length === 0 ? (
+                <Card className="col-span-full">
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <FileJson className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                    <p className="text-muted-foreground">No ConfigMaps defined</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                configMaps.map((cm) => (
+                  <Card key={cm.id}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Settings className="h-4 w-4" />
+                        {cm.name}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Badge variant="secondary">{cm.keys.length} keys</Badge>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
           </TabsContent>
+
           <TabsContent value="secrets">
-            <SecretsTab template={template} readOnly />
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Registry Secret */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    {template.registrySecret.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Badge variant="outline">Registry Secret</Badge>
+                </CardContent>
+              </Card>
+              
+              {/* TLS Secrets */}
+              {tlsSecrets.map((secret) => (
+                <Card key={secret.id}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      {secret.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Badge variant="outline">TLS Secret</Badge>
+                  </CardContent>
+                </Card>
+              ))}
+              
+              {/* Opaque Secrets */}
+              {opaqueSecrets.map((secret) => (
+                <Card key={secret.id}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      {secret.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Badge variant="secondary">{secret.keys.length} keys</Badge>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </TabsContent>
+
           <TabsContent value="ingresses">
-            <IngressesTab template={template} readOnly />
+            <div className="grid gap-4 md:grid-cols-2">
+              {ingresses.length === 0 ? (
+                <Card className="col-span-full">
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <Network className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                    <p className="text-muted-foreground">No Ingresses defined</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                ingresses.map((ingress) => (
+                  <Card key={ingress.id}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Network className="h-4 w-4" />
+                        {ingress.name}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">{ingress.mode}</Badge>
+                        {ingress.tls.length > 0 && (
+                          <Badge variant="outline">TLS Enabled</Badge>
+                        )}
+                        <Badge variant="secondary">{ingress.hosts.length} hosts</Badge>
+                      </div>
+                      {ingress.hosts[0]?.hostname && (
+                        <p className="text-sm text-muted-foreground font-mono">
+                          Host: {ingress.hosts[0].hostname}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
           </TabsContent>
-          {template.enableNginxGateway && (
-            <TabsContent value="nginx">
-              <NginxConfigTab template={template} />
-            </TabsContent>
-          )}
         </Tabs>
       </div>
-    </MainLayout>
+    </PublicLayout>
   );
 }

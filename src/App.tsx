@@ -123,22 +123,16 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+  // Public community routes (viewable without login)
   {
     path: '/community',
-    element: (
-      <ProtectedRoute>
-        <CommunityTemplates />
-      </ProtectedRoute>
-    ),
+    element: <CommunityTemplates />,
   },
   {
     path: '/community/:templateId',
-    element: (
-      <ProtectedRoute>
-        <CommunityTemplateDetail />
-      </ProtectedRoute>
-    ),
+    element: <CommunityTemplateDetail />,
   },
+  // Admin route
   {
     path: '/users',
     element: (

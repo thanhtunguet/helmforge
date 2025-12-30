@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Check,
   BookOpen,
+  Globe,
 } from 'lucide-react';
 
 const features = [
@@ -70,6 +71,12 @@ export default function Landing() {
             <span className="font-semibold text-lg">Helm Designer</span>
           </div>
           <nav className="flex items-center gap-4">
+            <Link to="/community">
+              <Button variant="ghost" size="sm">
+                <Globe className="h-4 w-4 mr-2" />
+                Community
+              </Button>
+            </Link>
             <Link to="/docs">
               <Button variant="ghost" size="sm">
                 <BookOpen className="h-4 w-4 mr-2" />
@@ -210,6 +217,9 @@ export default function Landing() {
             <span className="font-semibold">Helm Designer</span>
           </div>
           <nav className="flex items-center gap-6 text-sm text-muted-foreground">
+            <Link to="/community" className="hover:text-foreground transition-colors">
+              Community
+            </Link>
             <Link to="/docs" className="hover:text-foreground transition-colors">
               Documentation
             </Link>
