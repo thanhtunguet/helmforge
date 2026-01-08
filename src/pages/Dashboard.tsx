@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useHelmStore } from '@/lib/store';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ export default function Dashboard() {
   const chartVersions = useHelmStore((state) => state.chartVersions);
   const services = useHelmStore((state) => state.services);
   const ingresses = useHelmStore((state) => state.ingresses);
+  const navigate = useNavigate();
 
   const recentVersions = chartVersions
     .sort(
@@ -214,7 +215,22 @@ export default function Dashboard() {
                     return (
                       <div
                         key={version.id}
-                        className="flex items-center justify-between px-6 py-4"
+                        className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-muted/50"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() =>
+                          navigate(
+                            `/templates/${version.templateId}/versions/${version.id}`
+                          )
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            navigate(
+                              `/templates/${version.templateId}/versions/${version.id}`
+                            );
+                          }
+                        }}
                       >
                         <div className="flex items-center gap-4">
                           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
@@ -232,13 +248,6 @@ export default function Dashboard() {
                             </p>
                           </div>
                         </div>
-                        <Link
-                          to={`/templates/${version.templateId}/versions/${version.id}`}
-                        >
-                          <Button variant="ghost" size="sm">
-                            View
-                          </Button>
-                        </Link>
                       </div>
                     );
                   })}
