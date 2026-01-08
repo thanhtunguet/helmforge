@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database, Json } from '@/integrations/supabase/types';
 import {
   Template,
   Service,
@@ -213,7 +213,7 @@ function dbIngressToApp(dbIngress: DbIngressRow): Ingress {
   // Prefer the new TLS configuration if present.
   let tls: import('@/types/helm').IngressTLS[] = [];
   if (Array.isArray(ingressWithTls.tls) && ingressWithTls.tls.length > 0) {
-    tls = ingressWithTls.tls as import('@/types/helm').IngressTLS[];
+    tls = ingressWithTls.tls as unknown as import('@/types/helm').IngressTLS[];
   } else if (dbIngress.tls_enabled && dbIngress.tls_secret_name) {
     // Old structure: single TLS secret for all hosts
     const allHostnames = hosts.map(h => h.hostname);
@@ -235,22 +235,26 @@ function dbIngressToApp(dbIngress: DbIngressRow): Ingress {
   };
 }
 
-// Helper to convert app ingress to database format
-function appIngressToDb(ingress: Ingress | Partial<Ingress>): Omit<DbIngressInsert, 'id' | 'created_at'> {
-  // For backward compatibility, store the first TLS config in the old fields
-  const hasTLS = ingress.tls && ingress.tls.length > 0;
-  const firstTLS = hasTLS ? ingress.tls![0] : null;
-
-  return {
-    template_id: ingress.templateId!,
-    name: ingress.name!,
-    mode: (ingress.mode || 'nginx-gateway') as Database['public']['Tables']['ingresses']['Row']['mode'],
-    rules: (ingress.hosts || []) as unknown as Database['public']['Tables']['ingresses']['Row']['rules'],
-    tls: (ingress.tls || []) as unknown as Database['public']['Tables']['ingresses']['Row']['tls'],
-    default_host: null,
-    tls_enabled: hasTLS,
-    tls_secret_name: firstTLS?.secretName || null,
-  };
+// Helper to convert app ingress to database format (for partial updates)
+function appIngressToDb(ingress: Ingress | Partial<Ingress>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  
+  // Only include fields that are present in the update
+  if (ingress.templateId !== undefined) result.template_id = ingress.templateId;
+  if (ingress.name !== undefined) result.name = ingress.name;
+  if (ingress.mode !== undefined) result.mode = ingress.mode;
+  if (ingress.hosts !== undefined) result.rules = ingress.hosts;
+  
+  // Handle TLS configuration
+  if (ingress.tls !== undefined) {
+    const hasTLS = ingress.tls.length > 0;
+    const firstTLS = hasTLS ? ingress.tls[0] : null;
+    result.tls = ingress.tls;
+    result.tls_enabled = hasTLS;
+    result.tls_secret_name = firstTLS?.secretName || null;
+  }
+  
+  return result;
 }
 
 // Helper to convert database chart version to app chart version
@@ -476,12 +480,18 @@ export const tlsSecretDb = {
   },
 
   async create(secret: TLSSecret): Promise<TLSSecret> {
+    const dbData = {
+      id: secret.id,
+      template_id: secret.templateId,
+      name: secret.name,
+      cert: secret.cert || null,
+      private_key: secret.key || null,
+      not_before: secret.notBefore || null,
+      expires_at: secret.expiresAt || null,
+    };
     const { data, error } = await supabase
       .from('tls_secrets')
-      .insert({
-        id: secret.id,
-        ...appTLSSecretToDb(secret),
-      })
+      .insert(dbData as Database['public']['Tables']['tls_secrets']['Insert'])
       .select()
       .single();
 
@@ -574,12 +584,19 @@ export const ingressDb = {
   },
 
   async create(ingress: Ingress): Promise<Ingress> {
+    const dbData = {
+      id: ingress.id,
+      template_id: ingress.templateId,
+      name: ingress.name,
+      mode: ingress.mode,
+      rules: ingress.hosts as unknown as Json,
+      tls: ingress.tls as unknown as Json,
+      tls_enabled: ingress.tls.length > 0,
+      tls_secret_name: ingress.tls.length > 0 ? ingress.tls[0].secretName : null,
+    };
     const { data, error } = await supabase
       .from('ingresses')
-      .insert({
-        id: ingress.id,
-        ...appIngressToDb(ingress),
-      })
+      .insert(dbData)
       .select()
       .single();
 
