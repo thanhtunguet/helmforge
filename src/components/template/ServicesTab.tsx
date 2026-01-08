@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { ConfigMapDialog } from '@/components/template/ConfigMapDialog';
+import { OpaqueSecretDialog } from '@/components/template/OpaqueSecretDialog';
 import {
   Table,
   TableBody,
@@ -64,6 +66,8 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [configMapDialogOpen, setConfigMapDialogOpen] = useState(false);
+  const [secretDialogOpen, setSecretDialogOpen] = useState(false);
   
   const addService = useHelmStore((state) => state.addService);
   const updateService = useHelmStore((state) => state.updateService);
@@ -513,10 +517,22 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
                     Load all keys from a ConfigMap as environment variables
                   </p>
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={addConfigMapEnvSource}>
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add ConfigMap
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    size="sm" 
+                    onClick={() => setConfigMapDialogOpen(true)}
+                    title="Create new ConfigMap"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    New ConfigMap
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={addConfigMapEnvSource}>
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add ConfigMap
+                  </Button>
+                </div>
               </div>
               {formData.configMapEnvSources.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No ConfigMaps mounted</p>
@@ -562,10 +578,22 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
                     Load all keys from an Opaque Secret as environment variables
                   </p>
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={addSecretEnvSource}>
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add Secret
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    size="sm" 
+                    onClick={() => setSecretDialogOpen(true)}
+                    title="Create new Opaque Secret"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    New Secret
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={addSecretEnvSource}>
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Secret
+                  </Button>
+                </div>
               </div>
               {formData.secretEnvSources.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No Secrets mounted</p>
@@ -679,6 +707,26 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ConfigMap Creation Dialog */}
+      <ConfigMapDialog
+        templateId={template.id}
+        open={configMapDialogOpen}
+        onOpenChange={setConfigMapDialogOpen}
+        onSuccess={() => {
+          // Optionally refresh or select the newly created ConfigMap
+        }}
+      />
+
+      {/* Opaque Secret Creation Dialog */}
+      <OpaqueSecretDialog
+        templateId={template.id}
+        open={secretDialogOpen}
+        onOpenChange={setSecretDialogOpen}
+        onSuccess={() => {
+          // Optionally refresh or select the newly created Secret
+        }}
+      />
     </div>
   );
 }
