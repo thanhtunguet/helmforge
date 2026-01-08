@@ -17,6 +17,7 @@ import {
   Download,
   FileCode,
   FileText,
+  Share2,
 } from 'lucide-react';
 import { ServicesTab } from '@/components/template/ServicesTab';
 import { ConfigMapsTab } from '@/components/template/ConfigMapsTab';
@@ -26,6 +27,7 @@ import { VersionsTab } from '@/components/template/VersionsTab';
 import { NginxConfigTab } from '@/components/template/NginxConfigTab';
 import { ReadmeTab } from '@/components/template/ReadmeTab';
 import { TemplateSettingsDialog } from '@/components/template/TemplateSettingsDialog';
+import { ShareTemplateDialog } from '@/components/template/ShareTemplateDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +47,7 @@ export default function TemplateDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   
   // Get the active tab from URL query parameter, default to 'versions'
   const activeTab = searchParams.get('tab') || 'versions';
@@ -153,6 +156,10 @@ export default function TemplateDetail() {
             </div>
             
             <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShareOpen(true)}>
+                <Share2 className="mr-2 h-4 w-4" />
+                Share
+              </Button>
               <Button variant="outline" onClick={() => setSettingsOpen(true)}>
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
@@ -280,6 +287,13 @@ export default function TemplateDetail() {
         template={template}
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
+      />
+      
+      <ShareTemplateDialog
+        templateId={template.id}
+        templateName={template.name}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
       />
     </MainLayout>
   );

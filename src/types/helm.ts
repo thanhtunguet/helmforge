@@ -182,3 +182,17 @@ export interface PartialUpdateRequest {
   appVersion?: string;
   releaseNotes?: string;
 }
+
+// Template Sharing Types
+export type SharePermission = 'view' | 'edit';
+
+export interface TemplateShare {
+  id: string;
+  templateId: string;
+  sharedWithUserId: string;
+  sharedWithEmail?: string;
+  sharedWithDisplayName?: string;
+  permission: SharePermission;
+  sharedByUserId: string;
+  createdAt: string;
+}

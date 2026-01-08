@@ -19,6 +19,9 @@ import {
   ArrowRight,
   Layers,
   Download,
+  Users,
+  Eye,
+  Pencil,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -27,7 +30,13 @@ export default function Dashboard() {
   const chartVersions = useHelmStore((state) => state.chartVersions);
   const services = useHelmStore((state) => state.services);
   const ingresses = useHelmStore((state) => state.ingresses);
+  const isSharedWithMe = useHelmStore((state) => state.isSharedWithMe);
+  const getSharePermission = useHelmStore((state) => state.getSharePermission);
   const navigate = useNavigate();
+
+  // Separate own templates from shared templates
+  const ownTemplates = templates.filter(t => !isSharedWithMe(t.id));
+  const sharedTemplates = templates.filter(t => isSharedWithMe(t.id));
 
   const recentVersions = chartVersions
     .sort(
@@ -106,8 +115,8 @@ export default function Dashboard() {
         {/* Templates List */}
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Templates</h2>
-            {templates.length > 0 && (
+            <h2 className="text-xl font-semibold">My Templates</h2>
+            {ownTemplates.length > 0 && (
               <Link
                 to="/templates/new"
                 className="text-sm text-primary hover:underline"
@@ -117,7 +126,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          {templates.length === 0 ? (
+          {ownTemplates.length === 0 ? (
             <Card className="border-dashed border-2 border-border bg-transparent">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
@@ -137,7 +146,7 @@ export default function Dashboard() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {templates.map((template) => {
+              {ownTemplates.map((template) => {
                 const templateServices = services.filter(
                   (s) => s.templateId === template.id
                 );
@@ -200,6 +209,79 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* Shared Templates */}
+        {sharedTemplates.length > 0 && (
+          <div>
+            <div className="mb-4 flex items-center gap-2">
+              <Users className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-xl font-semibold">Shared with Me</h2>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {sharedTemplates.map((template) => {
+                const templateServices = services.filter(
+                  (s) => s.templateId === template.id
+                );
+                const templateVersions = chartVersions.filter(
+                  (v) => v.templateId === template.id
+                );
+                const templateIngresses = ingresses.filter(
+                  (i) => i.templateId === template.id
+                );
+                const permission = getSharePermission(template.id);
+
+                return (
+                  <Link key={template.id} to={`/templates/${template.id}`}>
+                    <Card className="group border-border bg-card transition-all hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                              {template.name}
+                            </CardTitle>
+                            <CardDescription className="mt-1 line-clamp-2">
+                              {template.description || 'No description'}
+                            </CardDescription>
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 group-hover:translate-x-1" />
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          <Badge
+                            variant="outline"
+                            className="text-xs gap-1"
+                          >
+                            {permission === 'edit' ? (
+                              <><Pencil className="h-3 w-3" /> Can edit</>
+                            ) : (
+                              <><Eye className="h-3 w-3" /> Can view</>
+                            )}
+                          </Badge>
+                          <Badge
+                            variant="secondary"
+                            className="font-mono text-xs"
+                          >
+                            Port: {template.sharedPort}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span>{templateServices.length} services</span>
+                          <span>{templateIngresses.length} ingresses</span>
+                          <span>{templateVersions.length} versions</span>
+                        </div>
+                        <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {format(new Date(template.updatedAt), 'MMM d, yyyy')}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Recent Versions */}
         {recentVersions.length > 0 && (

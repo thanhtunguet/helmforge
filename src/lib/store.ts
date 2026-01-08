@@ -11,6 +11,7 @@ import {
   TemplateWithRelations,
   PartialUpdateRequest,
   ChartVersionValues,
+  SharePermission,
 } from '@/types/helm';
 import {
   templateDb,
@@ -21,8 +22,15 @@ import {
   ingressDb,
   chartVersionDb,
   loadAllData,
+  templateShareDb,
 } from './db-service';
 import { toast } from 'sonner';
+
+// Track which templates are shared with current user
+interface SharedTemplateInfo {
+  templateId: string;
+  permission: SharePermission;
+}
 
 interface HelmStore {
   templates: Template[];
@@ -32,10 +40,15 @@ interface HelmStore {
   opaqueSecrets: OpaqueSecret[];
   ingresses: Ingress[];
   chartVersions: ChartVersion[];
+  sharedWithMe: SharedTemplateInfo[];
   isLoading: boolean;
   
   // Initialization
   loadFromDatabase: () => Promise<void>;
+  
+  // Share helpers
+  isSharedWithMe: (templateId: string) => boolean;
+  getSharePermission: (templateId: string) => SharePermission | null;
   
   // Template actions
   addTemplate: (template: Template) => Promise<void>;
@@ -87,14 +100,19 @@ export const useHelmStore = create<HelmStore>()(
       opaqueSecrets: [],
       ingresses: [],
       chartVersions: [],
+      sharedWithMe: [],
       isLoading: false,
       
       loadFromDatabase: async () => {
         set({ isLoading: true });
         try {
-          const data = await loadAllData();
+          const [data, sharedTemplates] = await Promise.all([
+            loadAllData(),
+            templateShareDb.getSharedWithMe().catch(() => []),
+          ]);
           set({
             ...data,
+            sharedWithMe: sharedTemplates,
             isLoading: false,
           });
         } catch (error) {
@@ -102,6 +120,15 @@ export const useHelmStore = create<HelmStore>()(
           toast.error('Failed to load data from database');
           set({ isLoading: false });
         }
+      },
+      
+      isSharedWithMe: (templateId) => {
+        return get().sharedWithMe.some(s => s.templateId === templateId);
+      },
+      
+      getSharePermission: (templateId) => {
+        const share = get().sharedWithMe.find(s => s.templateId === templateId);
+        return share?.permission || null;
       },
       
       addTemplate: async (template) => {

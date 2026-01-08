@@ -19,6 +19,8 @@ import {
   IngressRule,
   RegistrySecret,
   ChartVersionValues,
+  TemplateShare,
+  SharePermission,
 } from '@/types/helm';
 
 // Database row types
@@ -667,3 +669,121 @@ export async function loadAllData(): Promise<{
     chartVersions,
   };
 }
+
+// Template Share operations
+export const templateShareDb = {
+  async getByTemplateId(templateId: string): Promise<TemplateShare[]> {
+    const { data, error } = await supabase
+      .from('template_shares')
+      .select('*')
+      .eq('template_id', templateId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    
+    // Fetch user profiles for shared users
+    const shares = data || [];
+    if (shares.length === 0) return [];
+    
+    const userIds = shares.map(s => (s as { shared_with_user_id: string }).shared_with_user_id);
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, email, display_name')
+      .in('id', userIds);
+    
+    const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+    
+    return shares.map(s => {
+      const share = s as { id: string; template_id: string; shared_with_user_id: string; permission: string; shared_by_user_id: string; created_at: string };
+      const profile = profileMap.get(share.shared_with_user_id);
+      return {
+        id: share.id,
+        templateId: share.template_id,
+        sharedWithUserId: share.shared_with_user_id,
+        sharedWithEmail: profile?.email || undefined,
+        sharedWithDisplayName: profile?.display_name || undefined,
+        permission: share.permission as SharePermission,
+        sharedByUserId: share.shared_by_user_id,
+        createdAt: share.created_at,
+      };
+    });
+  },
+
+  async create(templateId: string, sharedWithUserId: string, permission: SharePermission): Promise<TemplateShare> {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+      .from('template_shares')
+      .insert({
+        template_id: templateId,
+        shared_with_user_id: sharedWithUserId,
+        permission,
+        shared_by_user_id: userData.user.id,
+      } as Database['public']['Tables']['template_shares']['Insert'])
+      .select()
+      .single();
+
+    if (error) throw error;
+    
+    const share = data as { id: string; template_id: string; shared_with_user_id: string; permission: string; shared_by_user_id: string; created_at: string };
+    return {
+      id: share.id,
+      templateId: share.template_id,
+      sharedWithUserId: share.shared_with_user_id,
+      permission: share.permission as SharePermission,
+      sharedByUserId: share.shared_by_user_id,
+      createdAt: share.created_at,
+    };
+  },
+
+  async update(shareId: string, permission: SharePermission): Promise<void> {
+    const { error } = await supabase
+      .from('template_shares')
+      .update({ permission } as Database['public']['Tables']['template_shares']['Update'])
+      .eq('id', shareId);
+
+    if (error) throw error;
+  },
+
+  async delete(shareId: string): Promise<void> {
+    const { error } = await supabase
+      .from('template_shares')
+      .delete()
+      .eq('id', shareId);
+
+    if (error) throw error;
+  },
+
+  async findUserByEmail(email: string): Promise<{ id: string; email: string; displayName: string | null } | null> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, email, display_name')
+      .eq('email', email)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw error;
+    }
+    
+    return data ? { id: data.id, email: data.email || '', displayName: data.display_name } : null;
+  },
+
+  async getSharedWithMe(): Promise<{ templateId: string; permission: SharePermission; sharedByUserId: string }[]> {
+    const { data, error } = await supabase
+      .from('template_shares')
+      .select('template_id, permission, shared_by_user_id');
+
+    if (error) throw error;
+    
+    return (data || []).map(s => {
+      const share = s as { template_id: string; permission: string; shared_by_user_id: string };
+      return {
+        templateId: share.template_id,
+        permission: share.permission as SharePermission,
+        sharedByUserId: share.shared_by_user_id,
+      };
+    });
+  },
+};

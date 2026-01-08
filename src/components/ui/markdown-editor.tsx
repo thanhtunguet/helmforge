@@ -14,14 +14,11 @@ import go from 'highlight.js/lib/languages/go';
 import java from 'highlight.js/lib/languages/java';
 import javascript from 'highlight.js/lib/languages/javascript';
 import json from 'highlight.js/lib/languages/json';
-import less from 'highlight.js/lib/languages/less';
 import perl from 'highlight.js/lib/languages/perl';
 import php from 'highlight.js/lib/languages/php';
 import python from 'highlight.js/lib/languages/python';
 import ruby from 'highlight.js/lib/languages/ruby';
 import rust from 'highlight.js/lib/languages/rust';
-import sass from 'highlight.js/lib/languages/sass';
-import scss from 'highlight.js/lib/languages/scss';
 import sql from 'highlight.js/lib/languages/sql';
 import typescript from 'highlight.js/lib/languages/typescript';
 import xml from 'highlight.js/lib/languages/xml';
@@ -39,14 +36,11 @@ hljs.registerLanguage('go', go);
 hljs.registerLanguage('java', java);
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('json', json);
-hljs.registerLanguage('less', less);
 hljs.registerLanguage('perl', perl);
 hljs.registerLanguage('php', php);
 hljs.registerLanguage('python', python);
 hljs.registerLanguage('ruby', ruby);
 hljs.registerLanguage('rust', rust);
-hljs.registerLanguage('sass', sass);
-hljs.registerLanguage('scss', scss);
 hljs.registerLanguage('sql', sql);
 hljs.registerLanguage('typescript', typescript);
 hljs.registerLanguage('xml', xml);
@@ -81,9 +75,6 @@ const languageAliases: Record<string, string> = {
   xml: 'xml',
   css: 'css',
   json: 'json',
-  sass: 'sass',
-  scss: 'scss',
-  less: 'less',
   sql: 'sql',
   yaml: 'yaml',
   yml: 'yaml',

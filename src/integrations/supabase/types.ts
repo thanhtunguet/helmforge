@@ -324,6 +324,41 @@ export type Database = {
           },
         ]
       }
+      template_shares: {
+        Row: {
+          created_at: string
+          id: string
+          permission: string
+          shared_by_user_id: string
+          shared_with_user_id: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          permission?: string
+          shared_by_user_id: string
+          shared_with_user_id: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          permission?: string
+          shared_by_user_id?: string
+          shared_with_user_id?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_shares_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       templates: {
         Row: {
           created_at: string
