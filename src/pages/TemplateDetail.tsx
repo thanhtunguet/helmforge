@@ -46,8 +46,8 @@ export default function TemplateDetail() {
   const [searchParams] = useSearchParams();
   const [settingsOpen, setSettingsOpen] = useState(false);
   
-  // Get the active tab from URL query parameter, default to 'services'
-  const activeTab = searchParams.get('tab') || 'services';
+  // Get the active tab from URL query parameter, default to 'versions'
+  const activeTab = searchParams.get('tab') || 'versions';
   
   // Use selectors that track actual data changes
   const templates = useHelmStore((state) => state.templates);
@@ -185,7 +185,7 @@ export default function TemplateDetail() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(value) => {
           const newSearchParams = new URLSearchParams(searchParams);
-          if (value === 'services') {
+          if (value === 'versions') {
             newSearchParams.delete('tab');
           } else {
             newSearchParams.set('tab', value);
@@ -193,6 +193,17 @@ export default function TemplateDetail() {
           navigate(`/templates/${templateId}?${newSearchParams.toString()}`, { replace: true });
         }} className="space-y-6">
           <TabsList className="bg-muted/50 p-1">
+            <TabsTrigger value="versions" className="gap-2">
+              <Download className="h-4 w-4" />
+              Versions
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {template.versions.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="readme" className="gap-2">
+              <FileText className="h-4 w-4" />
+              README
+            </TabsTrigger>
             <TabsTrigger value="services" className="gap-2">
               <Server className="h-4 w-4" />
               Services
@@ -221,23 +232,12 @@ export default function TemplateDetail() {
                 {template.ingresses.length}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="versions" className="gap-2">
-              <Download className="h-4 w-4" />
-              Versions
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {template.versions.length}
-              </Badge>
-            </TabsTrigger>
             {template.enableNginxGateway && (
               <TabsTrigger value="nginx" className="gap-2">
                 <FileCode className="h-4 w-4" />
                 Nginx Config
               </TabsTrigger>
             )}
-            <TabsTrigger value="readme" className="gap-2">
-              <FileText className="h-4 w-4" />
-              README
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="services">
