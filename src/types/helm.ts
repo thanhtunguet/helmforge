@@ -17,6 +17,11 @@ export interface SecretEnvSource {
   secretName: string;
 }
 
+export interface ServicePort {
+  name: string;
+  port: number;
+}
+
 export interface Service {
   id: string;
   templateId: string;
@@ -29,6 +34,8 @@ export interface Service {
   configMapEnvSources: ConfigMapEnvSource[];
   secretEnvSources: SecretEnvSource[];
   useStatefulSet: boolean;
+  useCustomPorts: boolean;
+  customPorts: ServicePort[];
 }
 
 export interface ConfigMapKey {

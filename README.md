@@ -186,6 +186,7 @@ Services represent your microservices. Each service can have:
 - Liveness and readiness probe paths
 - Environment variables (from ConfigMaps/Secrets)
 - StatefulSet option
+- Custom ports per service (ClusterIP)
 
 ### ConfigMaps & Secrets
 

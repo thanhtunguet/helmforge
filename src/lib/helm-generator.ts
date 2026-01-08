@@ -1,6 +1,23 @@
 import { saveAs } from 'file-saver';
 import pako from 'pako';
-import { TemplateWithRelations, ChartVersion } from '@/types/helm';
+import { TemplateWithRelations, ChartVersion, Service, ServicePort } from '@/types/helm';
+
+function getServicePorts(service: Service, template: TemplateWithRelations): ServicePort[] {
+  if (service.useCustomPorts && service.customPorts.length > 0) {
+    return service.customPorts;
+  }
+
+  return [{ name: 'http', port: template.sharedPort }];
+}
+
+function getServiceDefaultPort(service: Service, template: TemplateWithRelations): number {
+  const ports = getServicePorts(service, template);
+  return ports[0]?.port ?? template.sharedPort;
+}
+
+function buildServicePortTemplate(serviceNameExpression: string): string {
+  return `{{ $serviceValues := index $.Values.services ${serviceNameExpression} }}{{ if and $serviceValues.useCustomPorts (gt (len $serviceValues.ports) 0) }}{{ (index $serviceValues.ports 0).port }}{{ else }}{{ $.Values.global.sharedPort }}{{ end }}`;
+}
 
 export function generateChartYaml(template: TemplateWithRelations, version: ChartVersion): string {
   return `apiVersion: v2
@@ -26,6 +43,8 @@ interface HelmValues {
     env: Record<string, string>;
     livenessPath: string;
     readinessPath: string;
+    useCustomPorts: boolean;
+    ports: ServicePort[];
   }>;
   configMaps: Record<string, Record<string, string>>;
   ingress: Record<string, {
@@ -76,6 +95,8 @@ export function generateValuesYaml(template: TemplateWithRelations, version: Cha
       env: version.values.envValues[svc.name] || {},
       livenessPath: svc.livenessPath,
       readinessPath: svc.readinessPath,
+      useCustomPorts: svc.useCustomPorts ?? false,
+      ports: svc.customPorts || [],
     };
   });
 
@@ -265,6 +286,8 @@ function formatYaml(obj: JsonValue | unknown[], indent = 0): string {
 export function generateDeploymentYaml(serviceName: string, template: TemplateWithRelations): string {
   const service = template.services.find((s) => s.name === serviceName);
   if (!service) return '';
+  const servicePortTemplate =
+    '{{ if and $serviceValues.useCustomPorts (gt (len $serviceValues.ports) 0) }}{{ (index $serviceValues.ports 0).port }}{{ else }}{{ $.Values.global.sharedPort }}{{ end }}';
 
   return `apiVersion: apps/v1
 kind: Deployment
@@ -288,11 +311,20 @@ spec:
       containers:
         - name: ${serviceName}
           image: "{{ .Values.global.registry.url }}/{{ .Values.global.registry.project }}/${serviceName}:{{ .Values.services.${serviceName}.imageTag }}"
+          {{- $serviceValues := index .Values.services "${serviceName}" }}
           ports:
-            - containerPort: {{ .Values.global.sharedPort }}
-          {{- if .Values.services.${serviceName}.env }}
+            {{- if and $serviceValues.useCustomPorts (gt (len $serviceValues.ports) 0) }}
+            {{- range $port := $serviceValues.ports }}
+            - name: {{ $port.name }}
+              containerPort: {{ $port.port }}
+            {{- end }}
+            {{- else }}
+            - name: http
+              containerPort: {{ $.Values.global.sharedPort }}
+            {{- end }}
+          {{- if $serviceValues.env }}
           env:
-            {{- range $key, $value := .Values.services.${serviceName}.env }}
+            {{- range $key, $value := $serviceValues.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
@@ -300,13 +332,13 @@ spec:
           livenessProbe:
             httpGet:
               path: ${service.livenessPath}
-              port: {{ .Values.global.sharedPort }}
+              port: ${servicePortTemplate}
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: ${service.readinessPath}
-              port: {{ .Values.global.sharedPort }}
+              port: ${servicePortTemplate}
             initialDelaySeconds: 5
             periodSeconds: 5
 `;
@@ -322,9 +354,20 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: {{ .Values.global.sharedPort }}
-      targetPort: {{ .Values.global.sharedPort }}
+    {{- $serviceValues := index .Values.services "${serviceName}" }}
+    {{- if and $serviceValues.useCustomPorts (gt (len $serviceValues.ports) 0) }}
+    {{- range $port := $serviceValues.ports }}
+    - name: {{ $port.name }}
+      port: {{ $port.port }}
+      targetPort: {{ $port.port }}
       protocol: TCP
+    {{- end }}
+    {{- else }}
+    - name: http
+      port: {{ $.Values.global.sharedPort }}
+      targetPort: {{ $.Values.global.sharedPort }}
+      protocol: TCP
+    {{- end }}
   selector:
     app: ${serviceName}
 `;
@@ -376,9 +419,10 @@ export function generateNginxConfigMap(template: TemplateWithRelations): string 
   );
 
   const locationBlocks = allRoutes
-    .map(
-      (route) => `    location ${route.path} {
-        proxy_pass http://${route.serviceName}:{{ .Values.global.sharedPort }};
+    .map((route) => {
+      const portTemplate = buildServicePortTemplate(`"${route.serviceName}"`);
+      return `    location ${route.path} {
+        proxy_pass http://${route.serviceName}:${portTemplate};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -387,7 +431,7 @@ export function generateNginxConfigMap(template: TemplateWithRelations): string 
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
     }`
-    )
+    })
     .join('\n\n');
 
   return `apiVersion: v1
@@ -519,6 +563,10 @@ export function generateIngressYaml(ingressName: string, template: TemplateWithR
     ingress.mode === 'nginx-gateway'
       ? 'nginx-gateway'
       : '{{ $path.serviceName }}';
+  const servicePortTemplate =
+    ingress.mode === 'nginx-gateway'
+      ? '{{ $.Values.global.sharedPort }}'
+      : buildServicePortTemplate('$path.serviceName');
 
   return `apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -551,7 +599,7 @@ spec:
               service:
                 name: ${backendService}
                 port:
-                  number: {{ $.Values.global.sharedPort }}
+                  number: ${servicePortTemplate}
           {{- end }}
     {{- end }}
 `;
@@ -787,6 +835,8 @@ export function generateRenderedManifests(
   template.services.forEach((service) => {
     const imageTag = version.values.imageTags[service.name] || 'latest';
     const envValues = version.values.envValues[service.name] || {};
+    const servicePorts = getServicePorts(service, template);
+    const defaultPort = getServiceDefaultPort(service, template);
     
     // Rendered Deployment
     let deploymentEnv = '';
@@ -796,6 +846,10 @@ export function generateRenderedManifests(
         deploymentEnv += `            - name: ${key}\n              value: "${value}"\n`;
       });
     }
+
+    const deploymentPorts = servicePorts
+      .map((port) => `            - name: ${port.name}\n              containerPort: ${port.port}\n`)
+      .join('');
 
     const deployment = `apiVersion: apps/v1
 kind: Deployment
@@ -823,23 +877,26 @@ spec:
         - name: ${service.name}
           image: "${template.registryUrl}/${template.registryProject}/${service.name}:${imageTag}"
           ports:
-            - containerPort: ${template.sharedPort}
+${deploymentPorts}
 ${deploymentEnv}          livenessProbe:
             httpGet:
               path: ${service.livenessPath}
-              port: ${template.sharedPort}
+              port: ${defaultPort}
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: ${service.readinessPath}
-              port: ${template.sharedPort}
+              port: ${defaultPort}
             initialDelaySeconds: 5
             periodSeconds: 5
 `;
     files.push({ name: `deployment-${service.name}.yaml`, content: deployment });
 
     // Rendered Service
+    const servicePortsYaml = servicePorts
+      .map((port) => `    - name: ${port.name}\n      port: ${port.port}\n      targetPort: ${port.port}\n      protocol: TCP\n`)
+      .join('');
     const serviceYaml = `apiVersion: v1
 kind: Service
 metadata:
@@ -853,10 +910,7 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: ${template.sharedPort}
-      targetPort: ${template.sharedPort}
-      protocol: TCP
-      name: http
+${servicePortsYaml}
   selector:
     app: ${service.name}
 `;
@@ -933,7 +987,8 @@ data:
     // Nginx ConfigMap
     let nginxConfig = 'events {}\nhttp {\n';
     template.services.forEach((service) => {
-      nginxConfig += `  upstream ${service.name} {\n    server ${service.name}:${template.sharedPort};\n  }\n`;
+      const defaultPort = getServiceDefaultPort(service, template);
+      nginxConfig += `  upstream ${service.name} {\n    server ${service.name}:${defaultPort};\n  }\n`;
     });
     nginxConfig += '  server {\n    listen 80;\n';
     template.services.forEach((service) => {
@@ -1072,7 +1127,12 @@ spec:
     ing.hosts.forEach((host) => {
       rulesSection += `  - host: ${host.hostname}\n    http:\n      paths:\n`;
       host.paths.forEach((path) => {
-        rulesSection += `        - path: ${path.path}\n          pathType: Prefix\n          backend:\n            service:\n              name: ${path.serviceName}\n              port:\n                number: ${template.sharedPort}\n`;
+        const targetService = template.services.find((svc) => svc.name === path.serviceName);
+        const targetPort = targetService
+          ? getServiceDefaultPort(targetService, template)
+          : template.sharedPort;
+        const portNumber = ing.mode === 'nginx-gateway' ? template.sharedPort : targetPort;
+        rulesSection += `        - path: ${path.path}\n          pathType: Prefix\n          backend:\n            service:\n              name: ${path.serviceName}\n              port:\n                number: ${portNumber}\n`;
       });
     });
 

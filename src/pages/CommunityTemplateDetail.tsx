@@ -41,6 +41,7 @@ import type {
   ConfigMapKey,
   ConfigMapEnvSource,
   SecretEnvSource,
+  ServicePort,
   TemplateVisibility 
 } from '@/types/helm';
 import type { Json } from '@/integrations/supabase/types';
@@ -129,6 +130,8 @@ export default function CommunityTemplateDetail() {
           configMapEnvSources: (s.config_map_env_sources as unknown as ConfigMapEnvSource[]) || [],
           secretEnvSources: (s.secret_env_sources as unknown as SecretEnvSource[]) || [],
           useStatefulSet: s.use_stateful_set,
+          useCustomPorts: s.use_custom_ports ?? false,
+          customPorts: (s.custom_ports as unknown as ServicePort[]) || [],
         }));
 
         const configMaps: ConfigMap[] = (configMapsRes.data || []).map((c) => ({

@@ -274,6 +274,7 @@ export type Database = {
       services: {
         Row: {
           config_map_env_sources: Json
+          custom_ports: Json
           created_at: string
           env_vars: Json
           health_check_enabled: boolean
@@ -284,10 +285,12 @@ export type Database = {
           routes: Json
           secret_env_sources: Json
           template_id: string
+          use_custom_ports: boolean
           use_stateful_set: boolean
         }
         Insert: {
           config_map_env_sources?: Json
+          custom_ports?: Json
           created_at?: string
           env_vars?: Json
           health_check_enabled?: boolean
@@ -298,10 +301,12 @@ export type Database = {
           routes?: Json
           secret_env_sources?: Json
           template_id: string
+          use_custom_ports?: boolean
           use_stateful_set?: boolean
         }
         Update: {
           config_map_env_sources?: Json
+          custom_ports?: Json
           created_at?: string
           env_vars?: Json
           health_check_enabled?: boolean
@@ -312,6 +317,7 @@ export type Database = {
           routes?: Json
           secret_env_sources?: Json
           template_id?: string
+          use_custom_ports?: boolean
           use_stateful_set?: boolean
         }
         Relationships: [

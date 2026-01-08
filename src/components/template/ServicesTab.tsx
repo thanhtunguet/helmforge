@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useHelmStore } from '@/lib/store';
-import { TemplateWithRelations, Service, EnvVarSchema, Route, ConfigMapEnvSource, SecretEnvSource } from '@/types/helm';
+import { TemplateWithRelations, Service, EnvVarSchema, Route, ConfigMapEnvSource, SecretEnvSource, ServicePort } from '@/types/helm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,6 +50,11 @@ interface ServicesTabProps {
   readOnly?: boolean;
 }
 
+interface FormPort {
+  name: string;
+  port: string;
+}
+
 interface FormData {
   name: string;
   routes: Route[];
@@ -60,6 +65,8 @@ interface FormData {
   configMapEnvSources: ConfigMapEnvSource[];
   secretEnvSources: SecretEnvSource[];
   useStatefulSet: boolean;
+  useCustomPorts: boolean;
+  customPorts: FormPort[];
 }
 
 export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
@@ -83,6 +90,8 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
     configMapEnvSources: [],
     secretEnvSources: [],
     useStatefulSet: false,
+    useCustomPorts: false,
+    customPorts: [],
   });
 
   const openNew = () => {
@@ -97,6 +106,8 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
       configMapEnvSources: [],
       secretEnvSources: [],
       useStatefulSet: false,
+      useCustomPorts: false,
+      customPorts: [],
     });
     setDialogOpen(true);
   };
@@ -113,6 +124,11 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
       configMapEnvSources: service.configMapEnvSources ? [...service.configMapEnvSources] : [],
       secretEnvSources: service.secretEnvSources ? [...service.secretEnvSources] : [],
       useStatefulSet: service.useStatefulSet ?? false,
+      useCustomPorts: service.useCustomPorts ?? false,
+      customPorts: (service.customPorts || []).map((port) => ({
+        name: port.name,
+        port: `${port.port}`,
+      })),
     });
     setDialogOpen(true);
   };
@@ -144,6 +160,29 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
     setFormData(prev => ({
       ...prev,
       envVars: [...prev.envVars, { name: '', required: false, defaultValue: '' }]
+    }));
+  };
+
+  const addCustomPort = () => {
+    setFormData(prev => ({
+      ...prev,
+      customPorts: [...prev.customPorts, { name: '', port: '' }]
+    }));
+  };
+
+  const updateCustomPort = (index: number, field: keyof FormPort, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      customPorts: prev.customPorts.map((port, i) =>
+        i === index ? { ...port, [field]: value } : port
+      )
+    }));
+  };
+
+  const removeCustomPort = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      customPorts: prev.customPorts.filter((_, i) => i !== index)
     }));
   };
 
@@ -219,6 +258,17 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
     const envVars = formData.envVars.filter(e => e.name.trim());
     const configMapEnvSources = formData.configMapEnvSources.filter(c => c.configMapName);
     const secretEnvSources = formData.secretEnvSources.filter(s => s.secretName);
+    const customPorts: ServicePort[] = formData.customPorts
+      .map((port) => ({
+        name: port.name.trim(),
+        port: Number(port.port),
+      }))
+      .filter((port) => port.name && Number.isFinite(port.port) && port.port > 0);
+
+    if (formData.useCustomPorts && customPorts.length === 0) {
+      toast.error('Add at least one custom port');
+      return;
+    }
 
     try {
       if (editingService) {
@@ -232,6 +282,8 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
           configMapEnvSources,
           secretEnvSources,
           useStatefulSet: formData.useStatefulSet,
+          useCustomPorts: formData.useCustomPorts,
+          customPorts,
         });
         toast.success('Service updated');
       } else {
@@ -247,6 +299,8 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
           configMapEnvSources,
           secretEnvSources,
           useStatefulSet: formData.useStatefulSet,
+          useCustomPorts: formData.useCustomPorts,
+          customPorts,
         };
         await addService(service);
         toast.success('Service added');
@@ -432,6 +486,66 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
                 }
               />
             </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Use custom ports</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Override the shared port for this service (ClusterIP only)
+                </p>
+              </div>
+              <Switch
+                checked={formData.useCustomPorts}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, useCustomPorts: checked })
+                }
+              />
+            </div>
+
+            {formData.useCustomPorts && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Ports</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addCustomPort}>
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Port
+                  </Button>
+                </div>
+                {formData.customPorts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No custom ports defined</p>
+                ) : (
+                  <div className="space-y-2">
+                    {formData.customPorts.map((port, index) => (
+                      <div key={`${port.name}-${index}`} className="flex items-center gap-2">
+                        <Input
+                          placeholder="http"
+                          value={port.name}
+                          onChange={(e) => updateCustomPort(index, 'name', e.target.value)}
+                          className="font-mono flex-1"
+                        />
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="8080"
+                          value={port.port}
+                          onChange={(e) => updateCustomPort(index, 'port', e.target.value)}
+                          className="font-mono w-32"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 text-destructive shrink-0"
+                          onClick={() => removeCustomPort(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">

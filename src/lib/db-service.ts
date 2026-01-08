@@ -3,6 +3,7 @@ import type { Database } from '@/integrations/supabase/types';
 import {
   Template,
   Service,
+  ServicePort,
   ConfigMap,
   TLSSecret,
   OpaqueSecret,
@@ -93,6 +94,8 @@ function dbServiceToApp(dbService: DbServiceRow): Service {
     configMapEnvSources: (dbService.config_map_env_sources as unknown as ConfigMapEnvSource[]) || [],
     secretEnvSources: (dbService.secret_env_sources as unknown as SecretEnvSource[]) || [],
     useStatefulSet: dbService.use_stateful_set,
+    useCustomPorts: dbService.use_custom_ports ?? false,
+    customPorts: (dbService.custom_ports as unknown as ServicePort[]) || [],
   };
 }
 
@@ -109,6 +112,8 @@ function appServiceToDb(service: Service | Partial<Service>): Omit<DbServiceInse
     config_map_env_sources: (service.configMapEnvSources || []) as unknown as Database['public']['Tables']['services']['Row']['config_map_env_sources'],
     secret_env_sources: (service.secretEnvSources || []) as unknown as Database['public']['Tables']['services']['Row']['secret_env_sources'],
     use_stateful_set: service.useStatefulSet ?? false,
+    use_custom_ports: service.useCustomPorts ?? false,
+    custom_ports: (service.customPorts || []) as unknown as Database['public']['Tables']['services']['Row']['custom_ports'],
   };
 }
 
@@ -658,4 +663,3 @@ export async function loadAllData(): Promise<{
     chartVersions,
   };
 }
-

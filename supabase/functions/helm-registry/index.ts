@@ -16,6 +16,11 @@ interface Route {
   path: string;
 }
 
+interface ServicePort {
+  name: string;
+  port: number;
+}
+
 interface Service {
   id: string;
   template_id: string;
@@ -23,6 +28,8 @@ interface Service {
   routes: Route[];
   liveness_path: string | null;
   readiness_path: string | null;
+  use_custom_ports?: boolean;
+  custom_ports?: ServicePort[];
   [key: string]: unknown;
 }
 
@@ -114,6 +121,10 @@ appVersion: "${version.app_version || '1.0.0'}"
 `;
 }
 
+function buildServicePortTemplate(serviceNameExpression: string): string {
+  return `{{ $serviceValues := index $.Values.services ${serviceNameExpression} }}{{ if and $serviceValues.useCustomPorts (gt (len $serviceValues.ports) 0) }}{{ (index $serviceValues.ports 0).port }}{{ else }}{{ $.Values.global.sharedPort }}{{ end }}`;
+}
+
 // Format object to YAML
 function formatYaml(obj: Record<string, unknown> | unknown[], indent = 0): string {
   const spaces = '  '.repeat(indent);
@@ -178,6 +189,8 @@ interface HelmValues {
       env: Record<string, string>;
       livenessPath: string | null;
       readinessPath: string | null;
+      useCustomPorts: boolean;
+      ports: ServicePort[];
     }
   >;
   configMaps: Record<string, Record<string, string>>;
@@ -226,6 +239,8 @@ function generateValuesYaml(template: TemplateWithRelations, version: ChartVersi
       env: version.values.envValues?.[svc.name] || {},
       livenessPath: svc.liveness_path,
       readinessPath: svc.readiness_path,
+      useCustomPorts: svc.use_custom_ports ?? false,
+      ports: svc.custom_ports || [],
     };
   });
 
@@ -338,6 +353,9 @@ function generateChartReadme(template: TemplateWithRelations): string {
 
 // Generate Deployment YAML
 function generateDeploymentYaml(serviceName: string, service: Service): string {
+  const servicePortTemplate =
+    '{{ if and $serviceValues.useCustomPorts (gt (len $serviceValues.ports) 0) }}{{ (index $serviceValues.ports 0).port }}{{ else }}{{ $.Values.global.sharedPort }}{{ end }}';
+
   return `apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -360,9 +378,17 @@ spec:
       containers:
         - name: ${serviceName}
           image: "{{ .Values.global.registry.url }}/{{ .Values.global.registry.project }}/${serviceName}:{{ index .Values.services "${serviceName}" "imageTag" }}"
-          ports:
-            - containerPort: {{ .Values.global.sharedPort }}
           {{- $serviceValues := index .Values.services "${serviceName}" }}
+          ports:
+            {{- if and $serviceValues.useCustomPorts (gt (len $serviceValues.ports) 0) }}
+            {{- range $port := $serviceValues.ports }}
+            - name: {{ $port.name }}
+              containerPort: {{ $port.port }}
+            {{- end }}
+            {{- else }}
+            - name: http
+              containerPort: {{ $.Values.global.sharedPort }}
+            {{- end }}
           {{- if $serviceValues.env }}
           env:
             {{- range $key, $value := $serviceValues.env }}
@@ -373,13 +399,13 @@ spec:
           livenessProbe:
             httpGet:
               path: ${service.liveness_path}
-              port: {{ .Values.global.sharedPort }}
+              port: ${servicePortTemplate}
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: ${service.readiness_path}
-              port: {{ .Values.global.sharedPort }}
+              port: ${servicePortTemplate}
             initialDelaySeconds: 5
             periodSeconds: 5
 `;
@@ -396,9 +422,20 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: {{ .Values.global.sharedPort }}
-      targetPort: {{ .Values.global.sharedPort }}
+    {{- $serviceValues := index .Values.services "${serviceName}" }}
+    {{- if and $serviceValues.useCustomPorts (gt (len $serviceValues.ports) 0) }}
+    {{- range $port := $serviceValues.ports }}
+    - name: {{ $port.name }}
+      port: {{ $port.port }}
+      targetPort: {{ $port.port }}
       protocol: TCP
+    {{- end }}
+    {{- else }}
+    - name: http
+      port: {{ $.Values.global.sharedPort }}
+      targetPort: {{ $.Values.global.sharedPort }}
+      protocol: TCP
+    {{- end }}
   selector:
     app: ${serviceName}
 `;
@@ -453,15 +490,16 @@ function generateNginxConfigMap(template: TemplateWithRelations): string {
   );
 
   const locationBlocks = allRoutes
-    .map(
-      (route) => `    location ${route.path} {
-        proxy_pass http://${route.serviceName}:{{ .Values.global.sharedPort }};
+    .map((route) => {
+      const portTemplate = buildServicePortTemplate(`"${route.serviceName}"`);
+      return `    location ${route.path} {
+        proxy_pass http://${route.serviceName}:${portTemplate};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-    }`,
-    )
+    }`;
+    })
     .join('\n\n');
 
   return `apiVersion: v1
@@ -586,6 +624,11 @@ spec:
 
 // Generate Ingress YAML
 function generateIngressYaml(ingressName: string, ingress: Ingress): string {
+  const servicePortTemplate =
+    ingress.mode === 'nginx-gateway'
+      ? '{{ $.Values.global.sharedPort }}'
+      : buildServicePortTemplate('$rule.serviceName');
+
   return `apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -624,7 +667,7 @@ spec:
               service:
                 name: {{ $rule.serviceName }}
                 port:
-                  number: {{ $.Values.global.sharedPort }}
+                  number: ${servicePortTemplate}
           {{- end }}
           {{- else }}
           - path: /
