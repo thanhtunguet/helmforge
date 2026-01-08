@@ -28,6 +28,7 @@ import { ArrowLeft, Plus, Trash2, Network, Globe, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { IngressHost, IngressTLS } from '@/types/helm';
 import { Checkbox } from '@/components/ui/checkbox';
+import { validateTlsInputs } from '@/lib/tls-utils';
 
 export default function EditIngress() {
   const { templateId, ingressId } = useParams();
@@ -250,14 +251,27 @@ export default function EditIngress() {
       return;
     }
 
+    const validation = validateTlsInputs(tlsSecretFormData.cert, tlsSecretFormData.key);
+    if (validation.errors.length > 0) {
+      validation.errors.forEach((message) => toast.error(message));
+      return;
+    }
+
+    const certValue = validation.cert ?? '';
+    const keyValue = validation.key ?? '';
+    const notBeforeValue = validation.notBefore ?? '';
+    const expiresAtValue = validation.expiresAt ?? '';
+
     try {
       await addTLSSecret({
         id: crypto.randomUUID(),
         templateId: template.id,
         name: tlsSecretFormData.name,
         type: 'tls',
-        cert: tlsSecretFormData.cert || undefined,
-        key: tlsSecretFormData.key || undefined,
+        cert: certValue,
+        key: keyValue,
+        notBefore: notBeforeValue,
+        expiresAt: expiresAtValue,
       });
       toast.success('TLS secret added');
       setTlsSecretDialogOpen(false);

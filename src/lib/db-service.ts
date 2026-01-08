@@ -146,15 +146,25 @@ function dbTLSSecretToApp(dbSecret: DbTLSSecretRow): TLSSecret {
     templateId: dbSecret.template_id,
     name: dbSecret.name,
     type: 'tls',
+    cert: dbSecret.cert || undefined,
+    key: dbSecret.private_key || undefined,
+    notBefore: dbSecret.not_before || undefined,
+    expiresAt: dbSecret.expires_at || undefined,
   };
 }
 
 // Helper to convert app TLS secret to database format
-function appTLSSecretToDb(secret: TLSSecret | Partial<TLSSecret>): Omit<DbTLSSecretInsert, 'id' | 'created_at'> {
-  return {
-    template_id: secret.templateId!,
-    name: secret.name!,
-  };
+function appTLSSecretToDb(secret: TLSSecret | Partial<TLSSecret>): Partial<DbTLSSecretInsert> {
+  const result: Partial<DbTLSSecretInsert> = {};
+
+  if (secret.templateId !== undefined) result.template_id = secret.templateId;
+  if (secret.name !== undefined) result.name = secret.name;
+  if (secret.cert !== undefined) result.cert = secret.cert || null;
+  if (secret.key !== undefined) result.private_key = secret.key || null;
+  if (secret.notBefore !== undefined) result.not_before = secret.notBefore || null;
+  if (secret.expiresAt !== undefined) result.expires_at = secret.expiresAt || null;
+
+  return result;
 }
 
 // Helper to convert database opaque secret to app opaque secret

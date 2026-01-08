@@ -149,6 +149,10 @@ export default function CommunityTemplateDetail() {
           templateId: s.template_id,
           name: s.name,
           type: 'tls' as const,
+          cert: s.cert || undefined,
+          key: s.private_key || undefined,
+          notBefore: s.not_before || undefined,
+          expiresAt: s.expires_at || undefined,
         }));
 
         const opaqueSecrets: OpaqueSecret[] = (opaqueSecretsRes.data || []).map((s) => ({

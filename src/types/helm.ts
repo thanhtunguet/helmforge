@@ -67,6 +67,8 @@ export interface TLSSecret {
   type: 'tls';
   cert?: string;
   key?: string;
+  notBefore?: string;
+  expiresAt?: string;
 }
 
 export interface OpaqueSecretKey {

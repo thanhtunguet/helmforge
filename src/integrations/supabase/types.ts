@@ -415,21 +415,33 @@ export type Database = {
       }
       tls_secrets: {
         Row: {
+          cert: string | null
           created_at: string
+          expires_at: string | null
           id: string
           name: string
+          not_before: string | null
+          private_key: string | null
           template_id: string
         }
         Insert: {
+          cert?: string | null
           created_at?: string
+          expires_at?: string | null
           id?: string
           name: string
+          not_before?: string | null
+          private_key?: string | null
           template_id: string
         }
         Update: {
+          cert?: string | null
           created_at?: string
+          expires_at?: string | null
           id?: string
           name?: string
+          not_before?: string | null
+          private_key?: string | null
           template_id?: string
         }
         Relationships: [

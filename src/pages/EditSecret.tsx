@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, X, Lock, FileKey } from 'lucide-react';
 import { toast } from 'sonner';
 import { TLSSecret, OpaqueSecret, OpaqueSecretKey } from '@/types/helm';
+import { validateTlsInputs } from '@/lib/tls-utils';
 
 export default function EditSecret() {
   const { templateId, secretId } = useParams();
@@ -67,11 +68,24 @@ export default function EditSecret() {
       return;
     }
 
+    const validation = validateTlsInputs(tlsFormData.cert, tlsFormData.key);
+    if (validation.errors.length > 0) {
+      validation.errors.forEach((message) => toast.error(message));
+      return;
+    }
+
+    const certValue = validation.cert ?? '';
+    const keyValue = validation.key ?? '';
+    const notBeforeValue = validation.notBefore ?? '';
+    const expiresAtValue = validation.expiresAt ?? '';
+
     try {
       await updateTLSSecret(secret.id, {
         name: tlsFormData.name,
-        cert: tlsFormData.cert || undefined,
-        key: tlsFormData.key || undefined,
+        cert: certValue,
+        key: keyValue,
+        notBefore: notBeforeValue,
+        expiresAt: expiresAtValue,
       });
       toast.success('TLS secret updated');
       navigate(`/templates/${templateId}?tab=secrets`);
@@ -298,5 +312,4 @@ export default function EditSecret() {
     </MainLayout>
   );
 }
-
 

@@ -25,6 +25,7 @@
 - **Nginx Gateway Integration** - Automatic nginx configuration generation based on service routes
 - **Redis Support** - Optional Redis deployment for caching and session management
 - **TLS/SSL Support** - Configure TLS secrets for secure ingress endpoints
+- **TLS Validity Tracking** - Surface Not Before and Expired At dates for TLS certificates
 - **StatefulSet Support** - Deploy services as StatefulSets for stateful workloads
 - **Health Check Configuration** - Configure liveness and readiness probes
 - **Environment Variables** - Manage service environment variables from ConfigMaps and Secrets

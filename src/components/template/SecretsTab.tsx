@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Plus, Trash2, Key, Lock, Pencil, Check, X, FileKey } from 'lucide-react';
 import { toast } from 'sonner';
+import { validateTlsInputs } from '@/lib/tls-utils';
 
 interface SecretsTabProps {
   template: TemplateWithRelations;
@@ -63,6 +64,11 @@ export function SecretsTab({ template, readOnly = false }: SecretsTabProps) {
   const addOpaqueSecret = useHelmStore((state) => state.addOpaqueSecret);
   const updateOpaqueSecret = useHelmStore((state) => state.updateOpaqueSecret);
   const deleteOpaqueSecret = useHelmStore((state) => state.deleteOpaqueSecret);
+  const formatDateValue = (value?: string) => {
+    if (!value) return '—';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
+  };
 
   // TLS Secret handlers
   const openNewTls = () => {
@@ -81,12 +87,25 @@ export function SecretsTab({ template, readOnly = false }: SecretsTabProps) {
       return;
     }
 
+    const validation = validateTlsInputs(tlsFormData.cert, tlsFormData.key);
+    if (validation.errors.length > 0) {
+      validation.errors.forEach((message) => toast.error(message));
+      return;
+    }
+
+    const certValue = validation.cert ?? '';
+    const keyValue = validation.key ?? '';
+    const notBeforeValue = validation.notBefore ?? '';
+    const expiresAtValue = validation.expiresAt ?? '';
+
     try {
       if (editingTlsSecret) {
         await updateTLSSecret(editingTlsSecret.id, {
           name: tlsFormData.name,
-          cert: tlsFormData.cert || undefined,
-          key: tlsFormData.key || undefined,
+          cert: certValue,
+          key: keyValue,
+          notBefore: notBeforeValue,
+          expiresAt: expiresAtValue,
         });
         toast.success('TLS secret updated');
       } else {
@@ -95,8 +114,10 @@ export function SecretsTab({ template, readOnly = false }: SecretsTabProps) {
           templateId: template.id,
           name: tlsFormData.name,
           type: 'tls',
-          cert: tlsFormData.cert || undefined,
-          key: tlsFormData.key || undefined,
+          cert: certValue,
+          key: keyValue,
+          notBefore: notBeforeValue,
+          expiresAt: expiresAtValue,
         };
         await addTLSSecret(secret);
         toast.success('TLS secret added');
@@ -256,9 +277,11 @@ export function SecretsTab({ template, readOnly = false }: SecretsTabProps) {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
-                <TableHead>Certificate</TableHead>
-                <TableHead>Private Key</TableHead>
-                {!readOnly && <TableHead className="w-[100px]">Actions</TableHead>}
+                  <TableHead>Certificate</TableHead>
+                  <TableHead>Private Key</TableHead>
+                  <TableHead>Not Before</TableHead>
+                  <TableHead>Expired At</TableHead>
+                  {!readOnly && <TableHead className="w-[100px]">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -290,6 +313,12 @@ export function SecretsTab({ template, readOnly = false }: SecretsTabProps) {
                       ) : (
                         <X className="h-4 w-4 text-muted-foreground" />
                       )}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">
+                      {formatDateValue(secret.notBefore)}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">
+                      {formatDateValue(secret.expiresAt)}
                     </TableCell>
                     {!readOnly && (
                       <TableCell onClick={(e) => e.stopPropagation()}>
