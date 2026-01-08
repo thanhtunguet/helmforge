@@ -181,6 +181,7 @@ function appOpaqueSecretToDb(secret: OpaqueSecret | Partial<OpaqueSecret>): Omit
 function dbIngressToApp(dbIngress: DbIngressRow): Ingress {
   const rulesData = dbIngress.rules as unknown;
   let hosts: import('@/types/helm').IngressHost[] = [];
+  const ingressWithTls = dbIngress as DbIngressRow & { tls?: unknown };
 
   // Migration: Check if this is the old structure (array of {path, serviceName})
   if (Array.isArray(rulesData) && rulesData.length > 0) {
@@ -199,9 +200,11 @@ function dbIngressToApp(dbIngress: DbIngressRow): Ingress {
     }
   }
 
-  // Migrate TLS configuration
+  // Prefer the new TLS configuration if present.
   let tls: import('@/types/helm').IngressTLS[] = [];
-  if (dbIngress.tls_enabled && dbIngress.tls_secret_name) {
+  if (Array.isArray(ingressWithTls.tls) && ingressWithTls.tls.length > 0) {
+    tls = ingressWithTls.tls as import('@/types/helm').IngressTLS[];
+  } else if (dbIngress.tls_enabled && dbIngress.tls_secret_name) {
     // Old structure: single TLS secret for all hosts
     const allHostnames = hosts.map(h => h.hostname);
     if (allHostnames.length > 0) {
@@ -233,6 +236,7 @@ function appIngressToDb(ingress: Ingress | Partial<Ingress>): Omit<DbIngressInse
     name: ingress.name!,
     mode: (ingress.mode || 'nginx-gateway') as Database['public']['Tables']['ingresses']['Row']['mode'],
     rules: (ingress.hosts || []) as unknown as Database['public']['Tables']['ingresses']['Row']['rules'],
+    tls: (ingress.tls || []) as unknown as Database['public']['Tables']['ingresses']['Row']['tls'],
     default_host: null,
     tls_enabled: hasTLS,
     tls_secret_name: firstTLS?.secretName || null,

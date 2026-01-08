@@ -92,6 +92,7 @@ export type Database = {
           mode: string
           name: string
           rules: Json
+          tls: Json
           template_id: string
           tls_enabled: boolean
           tls_secret_name: string | null
@@ -103,6 +104,7 @@ export type Database = {
           mode?: string
           name: string
           rules?: Json
+          tls?: Json
           template_id: string
           tls_enabled?: boolean
           tls_secret_name?: string | null
@@ -114,6 +116,7 @@ export type Database = {
           mode?: string
           name?: string
           rules?: Json
+          tls?: Json
           template_id?: string
           tls_enabled?: boolean
           tls_secret_name?: string | null
