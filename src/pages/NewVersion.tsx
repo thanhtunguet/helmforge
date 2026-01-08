@@ -41,6 +41,80 @@ const STEPS = [
   { id: 'review', label: 'Review', icon: Check },
 ];
 
+type SemverIdentifier = string | number;
+
+interface Semver {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease: SemverIdentifier[];
+}
+
+interface LatestSemver {
+  versionName: string;
+  semver: Semver;
+}
+
+function parseSemver(input: string): Semver | null {
+  const trimmed = input.trim();
+  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$/.exec(trimmed);
+  if (!match) return null;
+
+  const prerelease = match[4]
+    ? match[4].split('.').map((part) => (/^\d+$/.test(part) ? Number(part) : part))
+    : [];
+
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+    prerelease,
+  };
+}
+
+function compareSemver(a: Semver, b: Semver): number {
+  if (a.major !== b.major) return a.major > b.major ? 1 : -1;
+  if (a.minor !== b.minor) return a.minor > b.minor ? 1 : -1;
+  if (a.patch !== b.patch) return a.patch > b.patch ? 1 : -1;
+
+  const aPre = a.prerelease;
+  const bPre = b.prerelease;
+  if (aPre.length === 0 && bPre.length === 0) return 0;
+  if (aPre.length === 0) return 1;
+  if (bPre.length === 0) return -1;
+
+  const maxLength = Math.max(aPre.length, bPre.length);
+  for (let i = 0; i < maxLength; i += 1) {
+    const aId = aPre[i];
+    const bId = bPre[i];
+    if (aId === undefined) return -1;
+    if (bId === undefined) return 1;
+    if (aId === bId) continue;
+
+    const aIsNumber = typeof aId === 'number';
+    const bIsNumber = typeof bId === 'number';
+    if (aIsNumber && bIsNumber) return aId > bId ? 1 : -1;
+    if (aIsNumber) return -1;
+    if (bIsNumber) return 1;
+
+    return aId > bId ? 1 : -1;
+  }
+
+  return 0;
+}
+
+function getLatestSemver(versions: ChartVersion[]): LatestSemver | null {
+  let latest: LatestSemver | null = null;
+  versions.forEach((version) => {
+    const parsed = parseSemver(version.versionName);
+    if (!parsed) return;
+    if (!latest || compareSemver(parsed, latest.semver) > 0) {
+      latest = { versionName: version.versionName, semver: parsed };
+    }
+  });
+  return latest;
+}
+
 export default function NewVersion() {
   const { templateId } = useParams();
   const navigate = useNavigate();
@@ -75,6 +149,12 @@ export default function NewVersion() {
   });
   const isRegistryPasswordMissing = !values.registryPassword?.trim();
   const isVersionNameMissing = !versionInfo.versionName.trim();
+  const latestSemver = getLatestSemver(template?.versions ?? []);
+  const currentSemver = parseSemver(versionInfo.versionName);
+  const isVersionSemverValid = Boolean(currentSemver);
+  const isVersionGreaterThanLatest = latestSemver && currentSemver
+    ? compareSemver(currentSemver, latestSemver.semver) > 0
+    : true;
 
   // Track if we've initialized to prevent infinite loops
   const hasInitialized = useRef(false);
@@ -186,6 +266,14 @@ export default function NewVersion() {
         toast.error('Version name is required');
         return;
       }
+      if (!isVersionSemverValid) {
+        toast.error('Version must follow semantic versioning (e.g., 1.2.3 or 1.2.3-rc.1)');
+        return;
+      }
+      if (!isVersionGreaterThanLatest && latestSemver) {
+        toast.error(`Version must be greater than ${latestSemver.versionName}`);
+        return;
+      }
       if (isRegistryPasswordMissing) {
         toast.error('Registry password is required');
         return;
@@ -209,6 +297,14 @@ export default function NewVersion() {
         toast.error('Version name is required');
         return;
       }
+      if (!isVersionSemverValid) {
+        toast.error('Version must follow semantic versioning (e.g., 1.2.3 or 1.2.3-rc.1)');
+        return;
+      }
+      if (!isVersionGreaterThanLatest && latestSemver) {
+        toast.error(`Version must be greater than ${latestSemver.versionName}`);
+        return;
+      }
       if (isRegistryPasswordMissing) {
         toast.error('Registry password is required');
         return;
@@ -220,6 +316,16 @@ export default function NewVersion() {
   const handleCreate = async () => {
     if (!versionInfo.versionName.trim()) {
       toast.error('Version name is required');
+      return;
+    }
+
+    if (!isVersionSemverValid) {
+      toast.error('Version must follow semantic versioning (e.g., 1.2.3 or 1.2.3-rc.1)');
+      return;
+    }
+
+    if (!isVersionGreaterThanLatest && latestSemver) {
+      toast.error(`Version must be greater than ${latestSemver.versionName}`);
       return;
     }
 
@@ -281,6 +387,16 @@ export default function NewVersion() {
                     }
                     className="font-mono"
                   />
+                  {latestSemver && !isVersionGreaterThanLatest && isVersionSemverValid && (
+                    <p className="text-xs text-destructive">
+                      Version must be greater than {latestSemver.versionName}.
+                    </p>
+                  )}
+                  {!isVersionSemverValid && !isVersionNameMissing && (
+                    <p className="text-xs text-destructive">
+                      Use semantic versioning (e.g., 1.2.3 or 1.2.3-rc.1).
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     Semantic versioning recommended (e.g., 1.0.0)
                   </p>
@@ -901,7 +1017,12 @@ export default function NewVersion() {
             ) : (
               <Button
                 onClick={nextStep}
-                disabled={currentStep === 0 && (isRegistryPasswordMissing || isVersionNameMissing)}
+                disabled={currentStep === 0 && (
+                  isRegistryPasswordMissing
+                  || isVersionNameMissing
+                  || !isVersionSemverValid
+                  || !isVersionGreaterThanLatest
+                )}
               >
                 Next
                 <ArrowRight className="ml-2 h-4 w-4" />
