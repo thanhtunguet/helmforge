@@ -770,18 +770,14 @@ export const templateShareDb = {
   },
 
   async findUserByEmail(email: string): Promise<{ id: string; email: string; displayName: string | null } | null> {
+    // Use secure RPC function to find users without exposing all profiles
     const { data, error } = await supabase
-      .from('profiles')
-      .select('id, email, display_name')
-      .eq('email', email)
-      .single();
+      .rpc('find_user_for_sharing', { search_email: email });
 
-    if (error) {
-      if (error.code === 'PGRST116') return null;
-      throw error;
-    }
+    if (error) throw error;
     
-    return data ? { id: data.id, email: data.email || '', displayName: data.display_name } : null;
+    const user = data?.[0];
+    return user ? { id: user.id, email: user.email || '', displayName: user.display_name } : null;
   },
 
   async getSharedWithMe(): Promise<{ templateId: string; permission: SharePermission; sharedByUserId: string }[]> {

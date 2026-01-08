@@ -469,6 +469,15 @@ export type Database = {
         Args: { p_service_account_id: string; p_template_id: string }
         Returns: boolean
       }
+      find_user_for_sharing: {
+        Args: { search_email: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          email: string
+          id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
