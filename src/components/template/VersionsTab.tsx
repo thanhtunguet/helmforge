@@ -114,7 +114,6 @@ export function VersionsTab({ template }: VersionsTabProps) {
               <TableRow>
                 <TableHead>Version</TableHead>
                 <TableHead>App Version</TableHead>
-                <TableHead>Services</TableHead>
                 <TableHead>Nginx</TableHead>
                 <TableHead>Redis</TableHead>
                 <TableHead>Created</TableHead>
@@ -137,20 +136,6 @@ export function VersionsTab({ template }: VersionsTabProps) {
                     ) : (
                       <span className="text-xs text-muted-foreground">-</span>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {Object.entries(version.values.imageTags).slice(0, 2).map(([svc, tag]) => (
-                        <Badge key={svc} variant="outline" className="font-mono text-xs">
-                          {svc}:{tag}
-                        </Badge>
-                      ))}
-                      {Object.keys(version.values.imageTags).length > 2 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{Object.keys(version.values.imageTags).length - 2}
-                        </Badge>
-                      )}
-                    </div>
                   </TableCell>
                   <TableCell>
                     {(version.values.enableNginxGateway ?? template.enableNginxGateway) ? (
