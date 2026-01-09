@@ -20,6 +20,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { ServicesTab } from '@/components/template/ServicesTab';
+import { ExternalServicesTab } from '@/components/template/ExternalServicesTab';
 import { ConfigMapsTab } from '@/components/template/ConfigMapsTab';
 import { SecretsTab } from '@/components/template/SecretsTab';
 import { IngressesTab } from '@/components/template/IngressesTab';
@@ -225,7 +226,14 @@ export default function TemplateDetail() {
               <Server className="h-4 w-4" />
               Services
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {template.services.length}
+                {template.services.filter(s => !s.isExternal).length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="external-services" className="gap-2">
+              <Server className="h-4 w-4" />
+              External
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {template.services.filter(s => s.isExternal).length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="configmaps" className="gap-2">
@@ -259,6 +267,9 @@ export default function TemplateDetail() {
 
           <TabsContent value="services">
             <ServicesTab template={template} />
+          </TabsContent>
+          <TabsContent value="external-services">
+            <ExternalServicesTab template={template} />
           </TabsContent>
           <TabsContent value="configmaps">
             <ConfigMapsTab template={template} />

@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { useHelmStore } from '@/lib/store';
-import { TemplateWithRelations, Service, EnvVarSchema, Route, ConfigMapEnvSource, SecretEnvSource, ServicePort } from '@/types/helm';
+import { TemplateWithRelations, Service, EnvVarSchema, ConfigMapEnvSource, SecretEnvSource, ServicePort } from '@/types/helm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { ConfigMapDialog } from '@/components/template/ConfigMapDialog';
-import { OpaqueSecretDialog } from '@/components/template/OpaqueSecretDialog';
 import {
   Table,
   TableBody,
@@ -42,10 +40,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, X, Check, Database } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Check, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface ServicesTabProps {
+interface ExternalServicesTabProps {
   template: TemplateWithRelations;
   readOnly?: boolean;
 }
@@ -57,26 +55,22 @@ interface FormPort {
 
 interface FormData {
   name: string;
-  routes: Route[];
+  image: string;
   envVars: EnvVarSchema[];
   healthCheckEnabled: boolean;
   livenessPath: string;
   readinessPath: string;
   configMapEnvSources: ConfigMapEnvSource[];
   secretEnvSources: SecretEnvSource[];
-  useStatefulSet: boolean;
-  useCustomPorts: boolean;
   customPorts: FormPort[];
   replicas: number;
   useDaemonSet: boolean;
 }
 
-export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
+export function ExternalServicesTab({ template, readOnly = false }: ExternalServicesTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingService, setEditingService] = useState<Service | null>(null);
-  const [configMapDialogOpen, setConfigMapDialogOpen] = useState(false);
-  const [secretDialogOpen, setSecretDialogOpen] = useState(false);
   
   const addService = useHelmStore((state) => state.addService);
   const updateService = useHelmStore((state) => state.updateService);
@@ -84,15 +78,13 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
 
   const [formData, setFormData] = useState<FormData>({
     name: '',
-    routes: [],
+    image: '',
     envVars: [],
-    healthCheckEnabled: true,
+    healthCheckEnabled: false,
     livenessPath: '/health',
     readinessPath: '/ready',
     configMapEnvSources: [],
     secretEnvSources: [],
-    useStatefulSet: false,
-    useCustomPorts: false,
     customPorts: [],
     replicas: 1,
     useDaemonSet: false,
@@ -102,15 +94,13 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
     setEditingService(null);
     setFormData({
       name: '',
-      routes: [],
+      image: '',
       envVars: [],
-      healthCheckEnabled: true,
+      healthCheckEnabled: false,
       livenessPath: '/health',
       readinessPath: '/ready',
       configMapEnvSources: [],
       secretEnvSources: [],
-      useStatefulSet: false,
-      useCustomPorts: false,
       customPorts: [],
       replicas: 1,
       useDaemonSet: false,
@@ -122,15 +112,13 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
     setEditingService(service);
     setFormData({
       name: service.name,
-      routes: [...service.routes],
+      image: service.image || '',
       envVars: [...service.envVars],
-      healthCheckEnabled: service.healthCheckEnabled ?? true,
+      healthCheckEnabled: service.healthCheckEnabled ?? false,
       livenessPath: service.livenessPath,
       readinessPath: service.readinessPath,
       configMapEnvSources: service.configMapEnvSources ? [...service.configMapEnvSources] : [],
       secretEnvSources: service.secretEnvSources ? [...service.secretEnvSources] : [],
-      useStatefulSet: service.useStatefulSet ?? false,
-      useCustomPorts: service.useCustomPorts ?? false,
       customPorts: (service.customPorts || []).map((port) => ({
         name: port.name,
         port: `${port.port}`,
@@ -141,33 +129,26 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
     setDialogOpen(true);
   };
 
-  const addRoute = () => {
-    setFormData(prev => ({
-      ...prev,
-      routes: [...prev.routes, { path: '' }]
-    }));
-  };
-
-  const updateRoute = (index: number, path: string) => {
-    setFormData(prev => ({
-      ...prev,
-      routes: prev.routes.map((r, i) => 
-        i === index ? { path: path.startsWith('/') ? path : `/${path}` } : r
-      )
-    }));
-  };
-
-  const removeRoute = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      routes: prev.routes.filter((_, i) => i !== index)
-    }));
-  };
-
   const addEnvVar = () => {
     setFormData(prev => ({
       ...prev,
       envVars: [...prev.envVars, { name: '', required: false, defaultValue: '' }]
+    }));
+  };
+
+  const updateEnvVar = (index: number, field: 'name' | 'defaultValue', value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      envVars: prev.envVars.map((e, i) => 
+        i === index ? { ...e, [field]: value } : e
+      )
+    }));
+  };
+
+  const removeEnvVar = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      envVars: prev.envVars.filter((_, i) => i !== index)
     }));
   };
 
@@ -191,22 +172,6 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
     setFormData(prev => ({
       ...prev,
       customPorts: prev.customPorts.filter((_, i) => i !== index)
-    }));
-  };
-
-  const updateEnvVar = (index: number, field: 'name' | 'defaultValue', value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      envVars: prev.envVars.map((e, i) => 
-        i === index ? { ...e, [field]: value } : e
-      )
-    }));
-  };
-
-  const removeEnvVar = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      envVars: prev.envVars.filter((_, i) => i !== index)
     }));
   };
 
@@ -262,7 +227,11 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
       return;
     }
 
-    const routes = formData.routes.filter(r => r.path.trim());
+    if (!formData.image.trim()) {
+      toast.error('Docker image is required');
+      return;
+    }
+
     const envVars = formData.envVars.filter(e => e.name.trim());
     const configMapEnvSources = formData.configMapEnvSources.filter(c => c.configMapName);
     const secretEnvSources = formData.secretEnvSources.filter(s => s.secretName);
@@ -273,50 +242,45 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
       }))
       .filter((port) => port.name && Number.isFinite(port.port) && port.port > 0);
 
-    if (formData.useCustomPorts && customPorts.length === 0) {
-      toast.error('Add at least one custom port');
-      return;
-    }
-
     try {
       if (editingService) {
         await updateService(editingService.id, {
           name: formData.name,
-          routes,
+          image: formData.image,
           envVars,
           healthCheckEnabled: formData.healthCheckEnabled,
           livenessPath: formData.livenessPath,
           readinessPath: formData.readinessPath,
           configMapEnvSources,
           secretEnvSources,
-          useStatefulSet: formData.useStatefulSet,
-          useCustomPorts: formData.useCustomPorts,
+          useCustomPorts: customPorts.length > 0,
           customPorts,
           replicas: formData.replicas,
           useDaemonSet: formData.useDaemonSet,
         });
-        toast.success('Service updated');
+        toast.success('External service updated');
       } else {
         const service: Service = {
           id: crypto.randomUUID(),
           templateId: template.id,
           name: formData.name,
-          routes,
+          image: formData.image,
+          routes: [], // External services don't use routes (nginx gateway)
           envVars,
           healthCheckEnabled: formData.healthCheckEnabled,
           livenessPath: formData.livenessPath,
           readinessPath: formData.readinessPath,
           configMapEnvSources,
           secretEnvSources,
-          useStatefulSet: formData.useStatefulSet,
-          useCustomPorts: formData.useCustomPorts,
+          useStatefulSet: false,
+          useCustomPorts: customPorts.length > 0,
           customPorts,
-          isExternal: false,
+          isExternal: true,
           replicas: formData.replicas,
           useDaemonSet: formData.useDaemonSet,
         };
         await addService(service);
-        toast.success('Service added');
+        toast.success('External service added');
       }
 
       setDialogOpen(false);
@@ -329,7 +293,7 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
     if (deleteId) {
       try {
         await deleteService(deleteId);
-        toast.success('Service deleted');
+        toast.success('External service deleted');
         setDeleteId(null);
       } catch (error) {
         // Error is already handled in the store
@@ -340,34 +304,35 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
   // Combine opaque secrets for selection
   const availableSecrets = template.opaqueSecrets || [];
   
-  // Filter to show only internal services
-  const internalServices = template.services.filter(s => !s.isExternal);
+  // Filter to show only external services
+  const externalServices = template.services.filter(s => s.isExternal);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">Internal Services</h3>
+          <h3 className="text-lg font-semibold">External Services</h3>
           <p className="text-sm text-muted-foreground">
-            Define the microservices built from your container registry
+            Add services from DockerHub or other public registries
           </p>
         </div>
         {!readOnly && (
           <Button onClick={openNew}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Service
+            Add External Service
           </Button>
         )}
       </div>
 
-      {internalServices.length === 0 ? (
+      {externalServices.length === 0 ? (
         <Card className="border-dashed border-2 bg-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <p className="text-muted-foreground mb-4">No internal services defined yet</p>
+            <Globe className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground mb-4">No external services defined yet</p>
             {!readOnly && (
               <Button variant="outline" onClick={openNew}>
                 <Plus className="mr-2 h-4 w-4" />
-                Add your first service
+                Add your first external service
               </Button>
             )}
           </CardContent>
@@ -379,7 +344,7 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Image</TableHead>
-                <TableHead>Routes</TableHead>
+                <TableHead>Ports</TableHead>
                 <TableHead>Replicas</TableHead>
                 <TableHead>Health Check</TableHead>
                 <TableHead>Type</TableHead>
@@ -387,31 +352,33 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {internalServices.map((service) => (
+              {externalServices.map((service) => (
                 <TableRow key={service.id}>
                   <TableCell className="font-mono font-medium">
                     <div className="flex items-center gap-2">
                       {service.name}
-                      <Badge variant="secondary" className="text-xs">Internal</Badge>
+                      <Badge className="text-xs bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20">
+                        External
+                      </Badge>
                     </div>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground font-mono">
-                    {template.registryUrl}/{template.registryProject}/{service.name}:tag
+                    {service.image || '-'}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {service.routes.length > 0 ? (
-                        service.routes.slice(0, 3).map((r, i) => (
+                      {service.customPorts && service.customPorts.length > 0 ? (
+                        service.customPorts.slice(0, 3).map((p, i) => (
                           <Badge key={i} variant="secondary" className="font-mono text-xs">
-                            {r.path}
+                            {p.name}:{p.port}
                           </Badge>
                         ))
                       ) : (
                         <span className="text-xs text-muted-foreground">None</span>
                       )}
-                      {service.routes.length > 3 && (
+                      {service.customPorts && service.customPorts.length > 3 && (
                         <Badge variant="outline" className="text-xs">
-                          +{service.routes.length - 3}
+                          +{service.customPorts.length - 3}
                         </Badge>
                       )}
                     </div>
@@ -424,7 +391,7 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
                     )}
                   </TableCell>
                   <TableCell>
-                    {(service.healthCheckEnabled ?? true) ? (
+                    {service.healthCheckEnabled ? (
                       <Check className="h-4 w-4 text-success" />
                     ) : (
                       <X className="h-4 w-4 text-muted-foreground" />
@@ -434,11 +401,6 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
                     {service.useDaemonSet ? (
                       <Badge className="text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
                         DaemonSet
-                      </Badge>
-                    ) : service.useStatefulSet ? (
-                      <Badge variant="outline" className="text-xs">
-                        <Database className="h-3 w-3 mr-1" />
-                        StatefulSet
                       </Badge>
                     ) : (
                       <Badge variant="secondary" className="text-xs">Deployment</Badge>
@@ -478,10 +440,10 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingService ? 'Edit Service' : 'Add Service'}
+              {editingService ? 'Edit External Service' : 'Add External Service'}
             </DialogTitle>
             <DialogDescription>
-              Define a microservice for your Helm chart
+              Add a service from DockerHub or other public registries
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
@@ -489,13 +451,27 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
               <Label htmlFor="name">Service Name *</Label>
               <Input
                 id="name"
-                placeholder="api-gateway"
+                placeholder="redis"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="font-mono"
               />
               <p className="text-xs text-muted-foreground">
                 Must be DNS-safe (lowercase, alphanumeric, hyphens)
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="image">Docker Image *</Label>
+              <Input
+                id="image"
+                placeholder="nginx:latest or redis:7.2-alpine"
+                value={formData.image}
+                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Full image name from DockerHub or another registry (e.g., nginx:latest, redis:7.2)
               </p>
             </div>
 
@@ -521,119 +497,51 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
               <div>
                 <Label>Deploy as DaemonSet</Label>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Run one pod on each node (overrides StatefulSet/Deployment)
+                  Run one pod on each node
                 </p>
               </div>
               <Switch
                 checked={formData.useDaemonSet}
                 onCheckedChange={(checked) =>
-                  setFormData({ ...formData, useDaemonSet: checked, useStatefulSet: checked ? false : formData.useStatefulSet })
+                  setFormData({ ...formData, useDaemonSet: checked })
                 }
               />
             </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Deploy as StatefulSet</Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Use StatefulSet instead of Deployment (for stateful workloads)
-                </p>
-              </div>
-              <Switch
-                checked={formData.useStatefulSet}
-                disabled={formData.useDaemonSet}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, useStatefulSet: checked })
-                }
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Use custom ports</Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Override the shared port for this service (ClusterIP only)
-                </p>
-              </div>
-              <Switch
-                checked={formData.useCustomPorts}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, useCustomPorts: checked })
-                }
-              />
-            </div>
-
-            {formData.useCustomPorts && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Ports</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={addCustomPort}>
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add Port
-                  </Button>
-                </div>
-                {formData.customPorts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No custom ports defined</p>
-                ) : (
-                  <div className="space-y-2">
-                    {formData.customPorts.map((port, index) => (
-                      <div key={`${port.name}-${index}`} className="flex items-center gap-2">
-                        <Input
-                          placeholder="http"
-                          value={port.name}
-                          onChange={(e) => updateCustomPort(index, 'name', e.target.value)}
-                          className="font-mono flex-1"
-                        />
-                        <Input
-                          type="number"
-                          min="1"
-                          placeholder="8080"
-                          value={port.port}
-                          onChange={(e) => updateCustomPort(index, 'port', e.target.value)}
-                          className="font-mono w-32"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 text-destructive shrink-0"
-                          onClick={() => removeCustomPort(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Routes</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addRoute}>
+                <Label>Ports (Optional)</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addCustomPort}>
                   <Plus className="h-3 w-3 mr-1" />
-                  Add Route
+                  Add Port
                 </Button>
               </div>
-              {formData.routes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No routes defined</p>
+              {formData.customPorts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No ports defined - service will not expose any ports</p>
               ) : (
                 <div className="space-y-2">
-                  {formData.routes.map((route, index) => (
-                    <div key={index} className="flex items-center gap-2">
+                  {formData.customPorts.map((port, index) => (
+                    <div key={`${port.name}-${index}`} className="flex items-center gap-2">
                       <Input
-                        placeholder="/api/v1"
-                        value={route.path}
-                        onChange={(e) => updateRoute(index, e.target.value)}
-                        className="font-mono"
+                        placeholder="http"
+                        value={port.name}
+                        onChange={(e) => updateCustomPort(index, 'name', e.target.value)}
+                        className="font-mono flex-1"
+                      />
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="80"
+                        value={port.port}
+                        onChange={(e) => updateCustomPort(index, 'port', e.target.value)}
+                        className="font-mono w-32"
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         className="h-9 w-9 text-destructive shrink-0"
-                        onClick={() => removeRoute(index)}
+                        onClick={() => removeCustomPort(index)}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -642,6 +550,50 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
                 </div>
               )}
             </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Health Check</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Enable liveness and readiness probes
+                </p>
+              </div>
+              <Switch
+                checked={formData.healthCheckEnabled}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, healthCheckEnabled: checked })
+                }
+              />
+            </div>
+
+            {formData.healthCheckEnabled && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="livenessPath">Liveness Path</Label>
+                  <Input
+                    id="livenessPath"
+                    placeholder="/health"
+                    value={formData.livenessPath}
+                    onChange={(e) =>
+                      setFormData({ ...formData, livenessPath: e.target.value })
+                    }
+                    className="font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="readinessPath">Readiness Path</Label>
+                  <Input
+                    id="readinessPath"
+                    placeholder="/ready"
+                    value={formData.readinessPath}
+                    onChange={(e) =>
+                      setFormData({ ...formData, readinessPath: e.target.value })
+                    }
+                    className="font-mono"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -658,13 +610,13 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
                   {formData.envVars.map((envVar, index) => (
                     <div key={index} className="flex items-center gap-2">
                       <Input
-                        placeholder="VARIABLE_NAME"
+                        placeholder="VAR_NAME"
                         value={envVar.name}
                         onChange={(e) => updateEnvVar(index, 'name', e.target.value)}
                         className="font-mono flex-1"
                       />
                       <Input
-                        placeholder="Default value (optional)"
+                        placeholder="default value"
                         value={envVar.defaultValue || ''}
                         onChange={(e) => updateEnvVar(index, 'defaultValue', e.target.value)}
                         className="font-mono flex-1"
@@ -686,31 +638,14 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div>
-                  <Label>Mount ConfigMaps as Environment</Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Load all keys from a ConfigMap as environment variables
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    type="button" 
-                    variant="secondary" 
-                    size="sm" 
-                    onClick={() => setConfigMapDialogOpen(true)}
-                    title="Create new ConfigMap"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    New ConfigMap
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={addConfigMapEnvSource}>
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add ConfigMap
-                  </Button>
-                </div>
+                <Label>ConfigMap Env Sources</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addConfigMapEnvSource}>
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Source
+                </Button>
               </div>
               {formData.configMapEnvSources.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No ConfigMaps mounted</p>
+                <p className="text-sm text-muted-foreground">No ConfigMap sources linked</p>
               ) : (
                 <div className="space-y-2">
                   {formData.configMapEnvSources.map((source, index) => (
@@ -719,12 +654,12 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
                         value={source.configMapName}
                         onValueChange={(value) => updateConfigMapEnvSource(index, value)}
                       >
-                        <SelectTrigger className="font-mono">
+                        <SelectTrigger className="flex-1">
                           <SelectValue placeholder="Select ConfigMap" />
                         </SelectTrigger>
                         <SelectContent>
                           {template.configMaps.map((cm) => (
-                            <SelectItem key={cm.id} value={cm.name} className="font-mono">
+                            <SelectItem key={cm.id} value={cm.name}>
                               {cm.name}
                             </SelectItem>
                           ))}
@@ -747,31 +682,14 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div>
-                  <Label>Mount Secrets as Environment</Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Load all keys from an Opaque Secret as environment variables
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    type="button" 
-                    variant="secondary" 
-                    size="sm" 
-                    onClick={() => setSecretDialogOpen(true)}
-                    title="Create new Opaque Secret"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    New Secret
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={addSecretEnvSource}>
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add Secret
-                  </Button>
-                </div>
+                <Label>Secret Env Sources</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addSecretEnvSource}>
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Source
+                </Button>
               </div>
               {formData.secretEnvSources.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No Secrets mounted</p>
+                <p className="text-sm text-muted-foreground">No Secret sources linked</p>
               ) : (
                 <div className="space-y-2">
                   {formData.secretEnvSources.map((source, index) => (
@@ -780,12 +698,12 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
                         value={source.secretName}
                         onValueChange={(value) => updateSecretEnvSource(index, value)}
                       >
-                        <SelectTrigger className="font-mono">
+                        <SelectTrigger className="flex-1">
                           <SelectValue placeholder="Select Secret" />
                         </SelectTrigger>
                         <SelectContent>
                           {availableSecrets.map((secret) => (
-                            <SelectItem key={secret.id} value={secret.name} className="font-mono">
+                            <SelectItem key={secret.id} value={secret.name}>
                               {secret.name}
                             </SelectItem>
                           ))}
@@ -805,70 +723,25 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
                 </div>
               )}
             </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Health Checks</Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Enable liveness and readiness probes
-                  </p>
-                </div>
-                <Switch
-                  checked={formData.healthCheckEnabled}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, healthCheckEnabled: checked })
-                  }
-                />
-              </div>
-              {formData.healthCheckEnabled && (
-                <div className="grid gap-4 sm:grid-cols-2 pl-4 border-l-2 border-primary/20">
-                  <div className="space-y-2">
-                    <Label htmlFor="livenessPath">Liveness Path</Label>
-                    <Input
-                      id="livenessPath"
-                      placeholder="/health"
-                      value={formData.livenessPath}
-                      onChange={(e) =>
-                        setFormData({ ...formData, livenessPath: e.target.value })
-                      }
-                      className="font-mono"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="readinessPath">Readiness Path</Label>
-                    <Input
-                      id="readinessPath"
-                      placeholder="/ready"
-                      value={formData.readinessPath}
-                      onChange={(e) =>
-                        setFormData({ ...formData, readinessPath: e.target.value })
-                      }
-                      className="font-mono"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleSubmit}>
-              {editingService ? 'Update' : 'Add'} Service
+              {editingService ? 'Save Changes' : 'Add Service'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Service</AlertDialogTitle>
+            <AlertDialogTitle>Delete External Service</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this service? This action cannot be undone.
+              This will permanently delete this external service. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -882,26 +755,6 @@ export function ServicesTab({ template, readOnly = false }: ServicesTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* ConfigMap Creation Dialog */}
-      <ConfigMapDialog
-        templateId={template.id}
-        open={configMapDialogOpen}
-        onOpenChange={setConfigMapDialogOpen}
-        onSuccess={() => {
-          // Optionally refresh or select the newly created ConfigMap
-        }}
-      />
-
-      {/* Opaque Secret Creation Dialog */}
-      <OpaqueSecretDialog
-        templateId={template.id}
-        open={secretDialogOpen}
-        onOpenChange={setSecretDialogOpen}
-        onSuccess={() => {
-          // Optionally refresh or select the newly created Secret
-        }}
-      />
     </div>
   );
 }

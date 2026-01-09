@@ -119,7 +119,14 @@ export default function CommunityTemplateDetail() {
         };
 
         const services: Service[] = (servicesRes.data || []).map((s) => {
-          const extendedService = s as typeof s & { use_custom_ports?: boolean; custom_ports?: unknown };
+          const extendedService = s as typeof s & { 
+            use_custom_ports?: boolean; 
+            custom_ports?: unknown;
+            is_external?: boolean;
+            replicas?: number;
+            use_daemon_set?: boolean;
+            image?: string | null;
+          };
           return {
             id: s.id,
             templateId: s.template_id,
@@ -134,6 +141,10 @@ export default function CommunityTemplateDetail() {
             useStatefulSet: s.use_stateful_set,
             useCustomPorts: extendedService.use_custom_ports ?? false,
             customPorts: (extendedService.custom_ports as unknown as ServicePort[]) || [],
+            isExternal: extendedService.is_external ?? false,
+            replicas: extendedService.replicas ?? 1,
+            useDaemonSet: extendedService.use_daemon_set ?? false,
+            image: extendedService.image || undefined,
           };
         });
 

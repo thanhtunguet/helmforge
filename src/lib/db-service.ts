@@ -84,7 +84,14 @@ function appTemplateToDb(template: Template | Partial<Template>): Partial<DbTemp
 
 // Helper to convert database service to app service
 function dbServiceToApp(dbService: DbServiceRow): Service {
-  const extendedService = dbService as DbServiceRow & { use_custom_ports?: boolean; custom_ports?: unknown };
+  const extendedService = dbService as DbServiceRow & { 
+    use_custom_ports?: boolean; 
+    custom_ports?: unknown;
+    is_external?: boolean;
+    replicas?: number;
+    use_daemon_set?: boolean;
+    image?: string | null;
+  };
   return {
     id: dbService.id,
     templateId: dbService.template_id,
@@ -99,25 +106,35 @@ function dbServiceToApp(dbService: DbServiceRow): Service {
     useStatefulSet: dbService.use_stateful_set,
     useCustomPorts: extendedService.use_custom_ports ?? false,
     customPorts: (extendedService.custom_ports as unknown as ServicePort[]) || [],
+    isExternal: extendedService.is_external ?? false,
+    replicas: extendedService.replicas ?? 1,
+    useDaemonSet: extendedService.use_daemon_set ?? false,
+    image: extendedService.image || undefined,
   };
 }
 
 // Helper to convert app service to database format
 function appServiceToDb(service: Service | Partial<Service>): Record<string, unknown> {
-  return {
-    template_id: service.templateId!,
-    name: service.name!,
-    routes: (service.routes || []) as unknown as Database['public']['Tables']['services']['Row']['routes'],
-    env_vars: (service.envVars || []) as unknown as Database['public']['Tables']['services']['Row']['env_vars'],
-    health_check_enabled: service.healthCheckEnabled ?? false,
-    liveness_path: service.livenessPath || '/health',
-    readiness_path: service.readinessPath || '/ready',
-    config_map_env_sources: (service.configMapEnvSources || []) as unknown as Database['public']['Tables']['services']['Row']['config_map_env_sources'],
-    secret_env_sources: (service.secretEnvSources || []) as unknown as Database['public']['Tables']['services']['Row']['secret_env_sources'],
-    use_stateful_set: service.useStatefulSet ?? false,
-    use_custom_ports: service.useCustomPorts ?? false,
-    custom_ports: service.customPorts || [],
-  };
+  const result: Record<string, unknown> = {};
+  
+  if (service.templateId !== undefined) result.template_id = service.templateId;
+  if (service.name !== undefined) result.name = service.name;
+  if (service.routes !== undefined) result.routes = service.routes as unknown as Database['public']['Tables']['services']['Row']['routes'];
+  if (service.envVars !== undefined) result.env_vars = service.envVars as unknown as Database['public']['Tables']['services']['Row']['env_vars'];
+  if (service.healthCheckEnabled !== undefined) result.health_check_enabled = service.healthCheckEnabled;
+  if (service.livenessPath !== undefined) result.liveness_path = service.livenessPath;
+  if (service.readinessPath !== undefined) result.readiness_path = service.readinessPath;
+  if (service.configMapEnvSources !== undefined) result.config_map_env_sources = service.configMapEnvSources as unknown as Database['public']['Tables']['services']['Row']['config_map_env_sources'];
+  if (service.secretEnvSources !== undefined) result.secret_env_sources = service.secretEnvSources as unknown as Database['public']['Tables']['services']['Row']['secret_env_sources'];
+  if (service.useStatefulSet !== undefined) result.use_stateful_set = service.useStatefulSet;
+  if (service.useCustomPorts !== undefined) result.use_custom_ports = service.useCustomPorts;
+  if (service.customPorts !== undefined) result.custom_ports = service.customPorts;
+  if (service.isExternal !== undefined) result.is_external = service.isExternal;
+  if (service.replicas !== undefined) result.replicas = service.replicas;
+  if (service.useDaemonSet !== undefined) result.use_daemon_set = service.useDaemonSet;
+  if (service.image !== undefined) result.image = service.image || null;
+  
+  return result;
 }
 
 // Helper to convert database configmap to app configmap
