@@ -281,12 +281,16 @@ export type Database = {
           env_vars: Json
           health_check_enabled: boolean
           id: string
+          image: string | null
+          is_external: boolean
           liveness_path: string | null
           name: string
           readiness_path: string | null
+          replicas: number
           routes: Json
           secret_env_sources: Json
           template_id: string
+          use_daemon_set: boolean
           use_stateful_set: boolean
         }
         Insert: {
@@ -295,12 +299,16 @@ export type Database = {
           env_vars?: Json
           health_check_enabled?: boolean
           id?: string
+          image?: string | null
+          is_external?: boolean
           liveness_path?: string | null
           name: string
           readiness_path?: string | null
+          replicas?: number
           routes?: Json
           secret_env_sources?: Json
           template_id: string
+          use_daemon_set?: boolean
           use_stateful_set?: boolean
         }
         Update: {
@@ -309,12 +317,16 @@ export type Database = {
           env_vars?: Json
           health_check_enabled?: boolean
           id?: string
+          image?: string | null
+          is_external?: boolean
           liveness_path?: string | null
           name?: string
           readiness_path?: string | null
+          replicas?: number
           routes?: Json
           secret_env_sources?: Json
           template_id?: string
+          use_daemon_set?: boolean
           use_stateful_set?: boolean
         }
         Relationships: [

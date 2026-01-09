@@ -36,6 +36,11 @@ export interface Service {
   useStatefulSet: boolean;
   useCustomPorts: boolean;
   customPorts: ServicePort[];
+  // New fields for external services and consolidated features
+  isExternal: boolean;
+  replicas: number;
+  useDaemonSet: boolean;
+  image?: string; // Full image path for external services (e.g., nginx:latest)
 }
 
 export interface ConfigMapKey {
