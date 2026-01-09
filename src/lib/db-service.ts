@@ -622,14 +622,16 @@ export const ingressDb = {
   },
 
   async update(id: string, updates: Partial<Ingress>): Promise<Ingress> {
+    const updateData = appIngressToDb(updates);
     const { data, error } = await supabase
       .from('ingresses')
-      .update(appIngressToDb(updates as Ingress))
+      .update(updateData)
       .eq('id', id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) throw new Error('Ingress not found or access denied');
     return dbIngressToApp(data);
   },
 
