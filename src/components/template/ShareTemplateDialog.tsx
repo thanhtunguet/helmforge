@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { TemplateShare, SharePermission } from '@/types/helm';
 import { templateShareDb } from '@/lib/db-service';
 import { Button } from '@/components/ui/button';
@@ -31,6 +30,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Users, Trash2, UserPlus, Mail, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useCallback, useEffect, useState } from 'react';
 
 interface ShareTemplateDialogProps {
   templateId: string;
@@ -51,13 +51,7 @@ export function ShareTemplateDialog({
   const [email, setEmail] = useState('');
   const [permission, setPermission] = useState<SharePermission>('view');
 
-  useEffect(() => {
-    if (open) {
-      loadShares();
-    }
-  }, [open, templateId]);
-
-  const loadShares = async () => {
+  const loadShares = useCallback(async () => {
     setLoading(true);
     try {
       const data = await templateShareDb.getByTemplateId(templateId);
@@ -67,7 +61,13 @@ export function ShareTemplateDialog({
     } finally {
       setLoading(false);
     }
-  };
+  }, [templateId]);
+
+  useEffect(() => {
+    if (open) {
+      loadShares();
+    }
+  }, [open, loadShares]);
 
   const handleAddShare = async () => {
     if (!email.trim()) {

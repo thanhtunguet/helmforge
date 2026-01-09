@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Download, Trash2, Check, X, ArrowUpCircle } from 'lucide-react';
+import { Plus, Download, Trash2, Check, X, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useState } from 'react';
@@ -62,16 +62,8 @@ export function VersionsTab({ template }: VersionsTabProps) {
     }
   };
 
-  const handleUpgrade = (version: typeof template.versions[0]) => {
-    navigate(`/templates/${template.id}/versions/new`, {
-      state: {
-        initialValues: version.values,
-        initialVersionInfo: {
-          versionName: version.versionName,
-          appVersion: version.appVersion || '1.0.0',
-        },
-      },
-    });
+  const handlePartialUpdate = (version: typeof template.versions[0]) => {
+    navigate(`/templates/${template.id}/versions/${version.id}/partial-update`);
   };
 
   const sortedVersions = [...template.versions].sort(
@@ -160,10 +152,10 @@ export function VersionsTab({ template }: VersionsTabProps) {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => handleUpgrade(version)}
-                        title="Upgrade version"
+                        onClick={() => handlePartialUpdate(version)}
+                        title="Partial update"
                       >
-                        <ArrowUpCircle className="h-3.5 w-3.5" />
+                        <Edit className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         variant="outline"
