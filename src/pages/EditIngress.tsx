@@ -27,7 +27,6 @@ import {
 import { ArrowLeft, Plus, Trash2, Network, Globe, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { IngressHost, IngressTLS } from '@/types/helm';
-import { Checkbox } from '@/components/ui/checkbox';
 import { validateTlsInputs } from '@/lib/tls-utils';
 
 export default function EditIngress() {
@@ -53,9 +52,11 @@ export default function EditIngress() {
     tls: [] as IngressTLS[],
   });
 
+  // Per-host TLS secret mapping: hostname -> secretName (or empty string for no TLS)
+  const [hostTlsMapping, setHostTlsMapping] = useState<Record<string, string>>({});
+
   const [hostForm, setHostForm] = useState({ hostname: '' });
   const [pathForms, setPathForms] = useState<Record<number, { serviceName: string; selectedRoute: string; customPath: string }>>({});
-  const [tlsForm, setTlsForm] = useState({ secretName: '', selectedHosts: [] as string[] });
   const [tlsSecretDialogOpen, setTlsSecretDialogOpen] = useState(false);
   const [tlsSecretFormData, setTlsSecretFormData] = useState({ name: '', cert: '', key: '' });
 
@@ -71,6 +72,15 @@ export default function EditIngress() {
         hosts: hosts,
         tls: tls,
       });
+
+      // Build per-host TLS mapping from existing TLS config
+      const mapping: Record<string, string> = {};
+      tls.forEach((tlsConfig) => {
+        tlsConfig.hosts.forEach((hostname) => {
+          mapping[hostname] = tlsConfig.secretName;
+        });
+      });
+      setHostTlsMapping(mapping);
     }
   }, [ingress, template]);
 
@@ -187,57 +197,32 @@ export default function EditIngress() {
     });
   };
 
-  const addTLS = () => {
-    if (!tlsForm.secretName) {
-      toast.error('TLS secret is required');
-      return;
-    }
-
-    if (tlsForm.selectedHosts.length === 0) {
-      toast.error('At least one host must be selected');
-      return;
-    }
-
-    // Check if this secret is already used
-    if (formData.tls.some(t => t.secretName === tlsForm.secretName)) {
-      toast.error('This TLS secret is already configured');
-      return;
-    }
-
-    setFormData({
-      ...formData,
-      tls: [
-        ...formData.tls,
-        {
-          secretName: tlsForm.secretName,
-          hosts: [...tlsForm.selectedHosts],
-        },
-      ],
-    });
-
-    setTlsForm({ secretName: '', selectedHosts: [] });
+  // Update TLS secret for a specific host
+  const setHostTls = (hostname: string, secretName: string) => {
+    setHostTlsMapping((prev) => ({
+      ...prev,
+      [hostname]: secretName,
+    }));
   };
 
-  const removeTLS = (index: number) => {
-    setFormData({
-      ...formData,
-      tls: formData.tls.filter((_, i) => i !== index),
+  // Build TLS array from per-host mapping (called before save)
+  const buildTlsFromMapping = (): IngressTLS[] => {
+    // Group hosts by secret name
+    const secretToHosts: Record<string, string[]> = {};
+    Object.entries(hostTlsMapping).forEach(([hostname, secretName]) => {
+      if (secretName) {
+        if (!secretToHosts[secretName]) {
+          secretToHosts[secretName] = [];
+        }
+        secretToHosts[secretName].push(hostname);
+      }
     });
-  };
 
-  const toggleTLSHost = (hostname: string) => {
-    const isSelected = tlsForm.selectedHosts.includes(hostname);
-    if (isSelected) {
-      setTlsForm({
-        ...tlsForm,
-        selectedHosts: tlsForm.selectedHosts.filter(h => h !== hostname),
-      });
-    } else {
-      setTlsForm({
-        ...tlsForm,
-        selectedHosts: [...tlsForm.selectedHosts, hostname],
-      });
-    }
+    // Convert to TLS array format
+    return Object.entries(secretToHosts).map(([secretName, hosts]) => ({
+      secretName,
+      hosts,
+    }));
   };
 
   const openNewTlsSecret = () => {
@@ -275,7 +260,6 @@ export default function EditIngress() {
       });
       toast.success('TLS secret added');
       setTlsSecretDialogOpen(false);
-      setTlsForm((prev) => ({ ...prev, secretName: tlsSecretFormData.name }));
     } catch (error) {
       // Error is already handled in the store
     }
@@ -300,7 +284,12 @@ export default function EditIngress() {
     }
 
     try {
-      await updateIngress(ingress.id, formData);
+      // Build TLS config from per-host mapping
+      const tlsConfig = buildTlsFromMapping();
+      await updateIngress(ingress.id, {
+        ...formData,
+        tls: tlsConfig,
+      });
       toast.success('Ingress updated');
       navigate(`/templates/${templateId}?tab=ingresses`);
     } catch (error) {
@@ -380,14 +369,16 @@ export default function EditIngress() {
               <div className="flex items-center justify-between">
                 <div>
                   <Label className="text-base">TLS Configuration</Label>
-                  <p className="text-xs text-muted-foreground">Configure HTTPS for hosts</p>
+                  <p className="text-xs text-muted-foreground">Configure HTTPS for each host</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={openNewTlsSecret}>
                     <Plus className="h-3 w-3 mr-1" />
                     New TLS Secret
                   </Button>
-                  <Badge variant="secondary">{formData.tls.length} config(s)</Badge>
+                  <Badge variant="secondary">
+                    {Object.values(hostTlsMapping).filter(Boolean).length} host(s) with TLS
+                  </Badge>
                 </div>
               </div>
 
@@ -400,105 +391,43 @@ export default function EditIngress() {
                   Add hosts first before configuring TLS.
                 </div>
               ) : (
-                <>
-                  {/* Add TLS Form */}
-                  <Card className="border-2">
-                    <CardContent className="pt-4 space-y-3">
-                      <div className="space-y-2">
-                        <Label>TLS Secret</Label>
-                        <Select
-                          value={tlsForm.secretName}
-                          onValueChange={(value) =>
-                            setTlsForm({ ...tlsForm, secretName: value })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select TLS secret" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {templateTlsSecrets
-                              .filter(s => !formData.tls.some(t => t.secretName === s.name))
-                              .map((secret) => (
+                <Card className="border-2">
+                  <CardContent className="pt-4 space-y-3">
+                    <div className="space-y-3">
+                      {formData.hosts.map((host) => (
+                        <div key={host.hostname} className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 min-w-[200px]">
+                            {hostTlsMapping[host.hostname] ? (
+                              <Lock className="h-4 w-4 text-primary" />
+                            ) : (
+                              <Globe className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <span className="font-mono text-sm">{host.hostname}</span>
+                          </div>
+                          <Select
+                            value={hostTlsMapping[host.hostname] || ''}
+                            onValueChange={(value) => setHostTls(host.hostname, value)}
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="No TLS (HTTP only)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">No TLS (HTTP only)</SelectItem>
+                              {templateTlsSecrets.map((secret) => (
                                 <SelectItem key={secret.id} value={secret.name}>
-                                  {secret.name}
+                                  <div className="flex items-center gap-2">
+                                    <Lock className="h-3 w-3" />
+                                    {secret.name}
+                                  </div>
                                 </SelectItem>
                               ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Select Hosts for This TLS Secret</Label>
-                        <div className="rounded-lg border border-border p-3 space-y-2 max-h-40 overflow-y-auto">
-                          {formData.hosts.map((host) => (
-                            <div key={host.hostname} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`tls-host-${host.hostname}`}
-                                checked={tlsForm.selectedHosts.includes(host.hostname)}
-                                onCheckedChange={() => toggleTLSHost(host.hostname)}
-                              />
-                              <Label
-                                htmlFor={`tls-host-${host.hostname}`}
-                                className="text-sm font-mono cursor-pointer flex-1"
-                              >
-                                {host.hostname}
-                              </Label>
-                            </div>
-                          ))}
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </div>
-
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="w-full"
-                        onClick={addTLS}
-                        disabled={!tlsForm.secretName || tlsForm.selectedHosts.length === 0}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add TLS Configuration
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  {/* TLS Configurations List */}
-                  {formData.tls.length > 0 && (
-                    <div className="space-y-2">
-                      {formData.tls.map((tlsConfig, index) => (
-                        <Card key={index} className="border-primary/20">
-                          <CardContent className="pt-4">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Lock className="h-4 w-4 text-primary" />
-                                  <span className="font-mono font-semibold text-sm">
-                                    {tlsConfig.secretName}
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                  {tlsConfig.hosts.map((hostname) => (
-                                    <Badge key={hostname} variant="outline" className="font-mono text-xs">
-                                      {hostname}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => removeTLS(index)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
                       ))}
                     </div>
-                  )}
-                </>
+                  </CardContent>
+                </Card>
               )}
             </div>
 
