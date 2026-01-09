@@ -197,6 +197,8 @@ export default function EditIngress() {
     });
   };
 
+  const noTlsValue = '__no_tls__';
+
   // Update TLS secret for a specific host
   const setHostTls = (hostname: string, secretName: string) => {
     setHostTlsMapping((prev) => ({
@@ -406,13 +408,15 @@ export default function EditIngress() {
                           </div>
                           <Select
                             value={hostTlsMapping[host.hostname] || ''}
-                            onValueChange={(value) => setHostTls(host.hostname, value)}
+                            onValueChange={(value) =>
+                              setHostTls(host.hostname, value === noTlsValue ? '' : value)
+                            }
                           >
                             <SelectTrigger className="flex-1">
                               <SelectValue placeholder="No TLS (HTTP only)" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">No TLS (HTTP only)</SelectItem>
+                              <SelectItem value={noTlsValue}>No TLS (HTTP only)</SelectItem>
                               {templateTlsSecrets.map((secret) => (
                                 <SelectItem key={secret.id} value={secret.name}>
                                   <div className="flex items-center gap-2">
