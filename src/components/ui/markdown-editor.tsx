@@ -187,7 +187,11 @@ export function MarkdownEditor({
                   </ReactMarkdown>
                 </div>
               ) : (
-                <p className="text-muted-foreground text-sm">{placeholder}</p>
+                <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                    {placeholder}
+                  </ReactMarkdown>
+                </div>
               )}
             </div>
           </div>
